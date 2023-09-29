@@ -1,0 +1,2 @@
+docker run --name mysql1 -v "E:\Documents\BDMA\ULB\Data Warehouses\project1\DSGen-software-code-3.2.0rc1\data\mysql":/var/lib/mysql -e MYSQL_ROOT_PASSWORD=password -d mysql:latest
+docker run -it --name ubuntu -v "E:\Documents\BDMA\ULB\Data Warehouses\project1\DSGen-software-code-3.2.0rc1":/home --link mysql1:mysql ubuntu:latest /bin/bash
