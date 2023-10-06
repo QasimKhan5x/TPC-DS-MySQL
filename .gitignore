@@ -1,5 +1,8 @@
 data/
 tools/
+tests/
+query_templates/
+answer_sets/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

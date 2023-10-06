@@ -1,0 +1,20 @@
+sudo service mysql start
+
+
+./dsdgen \
+-DIR ../../data/1p \
+-SCALE 1 \
+-VERBOSE Y \
+-SUFFIX ".csv" \
+-TERMINATE N \
+-RNGSEED 42
+
+
+./dsqgen \
+-DIRECTORY ../query_templates \
+-INPUT ../query_templates/templates.lst \
+-VERBOSE Y \
+-QUALIFY Y \
+-SCALE 1 \
+-DIALECT netezza \
+-OUTPUT_DIR ../query_mysql
