@@ -193,3 +193,6 @@ for csv_file in csv_files:
     cursor.fetchall()
 analyze_time = time.time() - start_time
 log_time(log_file, "Analyze Time", analyze_time)
+conn.commit()
+cursor.close()
+conn.close()
