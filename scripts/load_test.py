@@ -159,7 +159,6 @@ def distribute_statements(categorized_statements):
     return threads
 
 
-start_time = time.time()
 with open("tools/tpcds_ri.sql", "r") as f:
     lines = f.readlines()
 # Filter out comments and empty lines
@@ -172,15 +171,12 @@ fk_sql_statements = [stmt.strip() for stmt in fk_sql_statements if stmt.strip()]
 categorized_statements = categorize_statements(fk_sql_statements)
 distributed_statements = distribute_statements(categorized_statements)
 
-max_thread_time = 0
+start_time = time.time()
+
 with ThreadPoolExecutor(max_workers=8) as executor:
     results = executor.map(execute_sql_statements, distributed_statements)
-
-    for result in results:
-        if result > max_thread_time:
-            max_thread_time = result
-
-log_time(log_file, "Total FK Time", max_thread_time)
+elapsed_time = time.time() - start_time
+log_time(log_file, "Total FK Time", elapsed_time)
 
 # Reset the connection settings for each connection in the pool
 for _ in range(8):
