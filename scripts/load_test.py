@@ -183,6 +183,9 @@ for _ in range(8):
     reset_connection_settings()
 
 # # 5. Analyze Tables
+conn = mysql.connector.connect(host="localhost", user="root", password="password")
+cursor = conn.cursor()
+
 start_time = time.time()
 for csv_file in csv_files:
     table_name = os.path.basename(csv_file).replace(".csv", "")
