@@ -17,7 +17,9 @@ fi
 # Loop over each CSV file in the directory
 for csv_file in "$input_dir"/*.csv; do
   echo "Processing $csv_file..."
-  
+  # If a line starts with "|", replace it with "\N|"
+  sed -i 's/^|/\\N|/' "$csv_file"
+
   # Replace occurrences of "||" with "|\\N|"
   sed -i ':a; s/||/|\\N|/g; ta' "$csv_file"
   
