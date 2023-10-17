@@ -7,7 +7,7 @@ export LANG=C
 exp_id=$(date +"%m-%d_%H-%M-%S")
 OUTPUT_FILE="results/load_test_conc_$exp_id.txt"
 # Database credentials
-DB="tpcds"
+DB="tpcds10"
 
 export OUTPUT_FILE
 export DB
