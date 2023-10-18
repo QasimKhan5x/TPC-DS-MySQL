@@ -32,12 +32,12 @@ FROM (
         SELECT
             SUM(SS_EXT_SALES_PRICE) PROMOTIONS
         FROM STORE_SALES
-            STRAIGHT_JOIN DATE_DIM
-            STRAIGHT_JOIN ITEM
-            STRAIGHT_JOIN STORE
-            STRAIGHT_JOIN PROMOTION
-            STRAIGHT_JOIN CUSTOMER
-            STRAIGHT_JOIN CUSTOMER_ADDRESS
+            JOIN DATE_DIM
+            JOIN ITEM
+            JOIN STORE
+            JOIN PROMOTION
+            JOIN CUSTOMER
+            JOIN CUSTOMER_ADDRESS
         WHERE
             SS_SOLD_DATE_SK = D_DATE_SK
             AND SS_STORE_SK = S_STORE_SK
@@ -59,11 +59,11 @@ FROM (
         SELECT
             SUM(SS_EXT_SALES_PRICE) TOTAL
         FROM STORE_SALES
-            straight_join DATE_DIM
-            straight_join ITEM
-            straight_join STORE
-            straight_join CUSTOMER
-            straight_join CUSTOMER_ADDRESS
+            JOIN DATE_DIM
+            JOIN ITEM
+            JOIN STORE
+            JOIN CUSTOMER
+            JOIN CUSTOMER_ADDRESS
         WHERE
             SS_SOLD_DATE_SK = D_DATE_SK
             AND SS_STORE_SK = S_STORE_SK

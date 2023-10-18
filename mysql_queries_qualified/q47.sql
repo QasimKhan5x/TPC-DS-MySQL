@@ -50,9 +50,9 @@ WITH V1 AS(
                     D_MOY
             ) RN
         FROM DATE_DIM
-            STRAIGHT_JOIN STORE_SALES
-            STRAIGHT_JOIN STORE
-            STRAIGHT_JOIN ITEM
+            JOIN STORE_SALES
+            JOIN STORE
+            JOIN ITEM
         WHERE
             SS_ITEM_SK = I_ITEM_SK
             AND SS_SOLD_DATE_SK = D_DATE_SK

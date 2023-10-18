@@ -212,6 +212,6 @@ FROM (
                 STORE.RETURN_RANK <= 10
                 OR STORE.CURRENCY_RANK <= 10
             )
-    )
+    ) T
 ORDER BY 1, 4, 5, 2
 LIMIT 100;

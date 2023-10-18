@@ -38,8 +38,8 @@ SELECT
             SUM(SS_NET_PROFIT) DESC
     ) AS RANK_WITHIN_PARENT
 FROM DATE_DIM D1
-    STRAIGHT_JOIN STORE_SALES
-    STRAIGHT_JOIN STORE
+    JOIN STORE_SALES
+    JOIN STORE
 WHERE
     D1.D_MONTH_SEQ BETWEEN 1218 AND 1218 + 11
     AND D1.D_DATE_SK = SS_SOLD_DATE_SK
@@ -55,8 +55,8 @@ WHERE
                             SUM(SS_NET_PROFIT) DESC
                     ) AS RANKING
                 FROM DATE_DIM
-                    STRAIGHT_JOIN STORE_SALES
-                    STRAIGHT_JOIN STORE
+                    JOIN STORE_SALES
+                    JOIN STORE
                 WHERE
                     D_MONTH_SEQ BETWEEN 1218 AND 1218 + 11
                     AND D_DATE_SK = SS_SOLD_DATE_SK

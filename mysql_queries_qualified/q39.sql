@@ -19,9 +19,9 @@ WITH INV AS (
                     STDDEV_SAMP(INV_QUANTITY_ON_HAND) STDEV,
                     AVG(INV_QUANTITY_ON_HAND) MEAN
                 FROM DATE_DIM
-                    STRAIGHT_JOIN INVENTORY
-                    STRAIGHT_JOIN ITEM
-                    STRAIGHT_JOIN WAREHOUSE
+                    JOIN INVENTORY
+                    JOIN ITEM
+                    JOIN WAREHOUSE
                 WHERE
                     INV_ITEM_SK = I_ITEM_SK
                     AND INV_WAREHOUSE_SK = W_WAREHOUSE_SK
@@ -87,9 +87,9 @@ WITH INV AS (
                     STDDEV_SAMP(INV_QUANTITY_ON_HAND) STDEV,
                     AVG(INV_QUANTITY_ON_HAND) MEAN
                 FROM DATE_DIM
-                    STRAIGHT_JOIN INVENTORY
-                    STRAIGHT_JOIN ITEM
-                    STRAIGHT_JOIN WAREHOUSE
+                    JOIN INVENTORY
+                    JOIN ITEM
+                    JOIN WAREHOUSE
                 WHERE
                     INV_ITEM_SK = I_ITEM_SK
                     AND INV_WAREHOUSE_SK = W_WAREHOUSE_SK

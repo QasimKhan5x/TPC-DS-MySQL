@@ -24,7 +24,7 @@ WITH WSS AS (
           , SUM( CASE WHEN ( D_DAY_NAME = 'Friday' ) THEN SS_SALES_PRICE ELSE NULL END ) FRI_SALES
           , SUM( CASE WHEN ( D_DAY_NAME = 'Saturday' ) THEN SS_SALES_PRICE ELSE NULL END ) SAT_SALES 
    FROM DATE_DIM 
-        straight_join STORE_SALES 
+        JOIN STORE_SALES 
    WHERE D_DATE_SK = SS_SOLD_DATE_SK 
    GROUP BY D_WEEK_SEQ
    , SS_STORE_SK )  
@@ -50,8 +50,8 @@ FROM
              , FRI_SALES FRI_SALES1
              , SAT_SALES SAT_SALES1 
       FROM STORE 
-           straight_join WSS 
-           straight_join DATE_DIM D 
+           JOIN WSS 
+           JOIN DATE_DIM D 
       WHERE D.D_WEEK_SEQ = WSS.D_WEEK_SEQ 
             AND SS_STORE_SK = S_STORE_SK 
             AND D_MONTH_SEQ BETWEEN 1205 AND 1205 + 11 ) Y, 
@@ -66,8 +66,8 @@ FROM
              , FRI_SALES FRI_SALES2
              , SAT_SALES SAT_SALES2 
       FROM STORE 
-           straight_join WSS 
-           straight_join DATE_DIM D 
+           JOIN WSS 
+           JOIN DATE_DIM D 
       WHERE D.D_WEEK_SEQ = WSS.D_WEEK_SEQ 
             AND SS_STORE_SK = S_STORE_SK 
             AND D_MONTH_SEQ BETWEEN 1205 + 12 AND 1205 + 23 ) X 

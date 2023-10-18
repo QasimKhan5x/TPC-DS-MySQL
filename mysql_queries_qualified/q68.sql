@@ -22,18 +22,18 @@ SELECT  C_LAST_NAME
         , EXTENDED_TAX
         , LIST_PRICE 
 FROM CUSTOMER_ADDRESS CURRENT_ADDR 
-     STRAIGHT_JOIN  CUSTOMER 
-     STRAIGHT_JOIN (SELECT SS_TICKET_NUMBER
+     JOIN  CUSTOMER 
+     JOIN (SELECT SS_TICKET_NUMBER
                            , SS_CUSTOMER_SK
                            , CA_CITY BOUGHT_CITY
                            , SUM(SS_EXT_SALES_PRICE) EXTENDED_PRICE
                            , SUM(SS_EXT_LIST_PRICE) LIST_PRICE
                            , SUM(SS_EXT_TAX) EXTENDED_TAX 
                     FROM STORE 
-                         STRAIGHT_JOIN STORE_SALES 
-                         STRAIGHT_JOIN HOUSEHOLD_DEMOGRAPHICS 
-                         STRAIGHT_JOIN DATE_DIM 
-                         STRAIGHT_JOIN CUSTOMER_ADDRESS 
+                         JOIN STORE_SALES 
+                         JOIN HOUSEHOLD_DEMOGRAPHICS 
+                         JOIN DATE_DIM 
+                         JOIN CUSTOMER_ADDRESS 
                     WHERE STORE_SALES.SS_SOLD_DATE_SK = DATE_DIM.D_DATE_SK 
                           AND STORE_SALES.SS_STORE_SK = STORE.S_STORE_SK 
                           AND STORE_SALES.SS_HDEMO_SK = HOUSEHOLD_DEMOGRAPHICS.HD_DEMO_SK 

@@ -1,25 +1,9 @@
--- Copyright (c) 2022, Oracle and/or its affiliates.
--- Licensed under the Apache License, Version 2.0 (the "License");
---  you may not use this file except in compliance with the License.
---  You may obtain a copy of the License at
--- 
---     https://www.apache.org/licenses/LICENSE-2.0
--- 
---  Unless required by applicable law or agreed to in writing, software
---  distributed under the License is distributed on an "AS IS" BASIS,
---  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
---  See the License for the specific language governing permissions and
---  limitations under the License.
-
--- Copyright (c) 2022, Transaction Processing Performance Council
-
-SELECT  A.CA_STATE STATE, 
-        COUNT(*) CNT 
+SELECT A.CA_STATE STATE, COUNT(*) CNT 
 FROM DATE_DIM D  
-     STRAIGHT_JOIN STORE_SALES S 
-     STRAIGHT_JOIN CUSTOMER C 
-     STRAIGHT_JOIN CUSTOMER_ADDRESS A 
-     STRAIGHT_JOIN ITEM I 
+     JOIN STORE_SALES S 
+     JOIN CUSTOMER C 
+     JOIN CUSTOMER_ADDRESS A 
+     JOIN ITEM I 
 WHERE A.CA_ADDRESS_SK = C.C_CURRENT_ADDR_SK 
       AND C.C_CUSTOMER_SK = S.SS_CUSTOMER_SK 
       AND S.SS_SOLD_DATE_SK = D.D_DATE_SK 

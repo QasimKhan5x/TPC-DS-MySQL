@@ -43,9 +43,9 @@ WITH MY_CUSTOMERS AS (
                 FROM
                     WEB_SALES
             ) CS_OR_WS_SALES
-            STRAIGHT_JOIN ITEM
-            STRAIGHT_JOIN DATE_DIM
-            STRAIGHT_JOIN CUSTOMER
+            JOIN ITEM
+            JOIN DATE_DIM
+            JOIN CUSTOMER
         WHERE
             SOLD_DATE_SK = D_DATE_SK
             AND ITEM_SK = I_ITEM_SK
@@ -60,10 +60,10 @@ WITH MY_CUSTOMERS AS (
             C_CUSTOMER_SK,
             SUM(SS_EXT_SALES_PRICE) AS REVENUE
         FROM MY_CUSTOMERS
-            STRAIGHT_JOIN CUSTOMER_ADDRESS
-            STRAIGHT_JOIN STORE
-            STRAIGHT_JOIN STORE_SALES
-            STRAIGHT_JOIN DATE_DIM
+            JOIN CUSTOMER_ADDRESS
+            JOIN STORE
+            JOIN STORE_SALES
+            JOIN DATE_DIM
         WHERE
             C_CURRENT_ADDR_SK = CA_ADDRESS_SK
             AND CA_COUNTY = S_COUNTY
