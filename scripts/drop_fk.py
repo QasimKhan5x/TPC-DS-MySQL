@@ -44,4 +44,4 @@ def drop_foreign_keys(host, user, password, database):
 
 
 # Usage
-drop_foreign_keys("localhost", "root", "password", "tpcds")
+drop_foreign_keys("localhost", "root", "password", "tpcds2")
