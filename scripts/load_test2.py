@@ -1,3 +1,5 @@
+# \source "E:\Documents\BDMA\ULB\Data Warehouses\project1\DSGen-software-code-3.2.0rc1\TPC-DS-MySQL\scripts\load_test2.py"
+
 from mysqlsh import mysql
 import mysqlsh
 import time
@@ -7,8 +9,9 @@ from datetime import datetime
 base_dir = "E:/Documents/BDMA/ULB/Data Warehouses/project1/DSGen-software-code-3.2.0rc1"
 os.chdir(base_dir)
 
+sf = 8
 uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-log_file = f"TPC-DS-MySQL/results/load_test_{uid}.txt"
+log_file = f"TPC-DS-MySQL/results/load_test_sf={sf}_{uid}.txt"
 
 # Function to log time measurements
 def log_time(log_file, label, elapsed_time):
@@ -19,7 +22,8 @@ def log_time(log_file, label, elapsed_time):
 session = mysql.get_classic_session('mysql://root:password@localhost:3306')
 
 # 1. Drop database if it exists and then create it
-db_name = "tpcds"  # example database name
+
+db_name = "tpcds"  if sf == 1 else f"tpcds{sf}"
 session.run_sql(f"DROP DATABASE IF EXISTS {db_name};")
 session.run_sql(f"CREATE DATABASE {db_name};")
 session.run_sql(f"USE {db_name};")
@@ -40,7 +44,7 @@ log_time(log_file, "Table Creation", time.time() - initial_time)
 
 # 3. Load data into tables from CSV files using util.import_table
 
-csv_dir = "data/1"
+csv_dir = f"data/{sf}"
 start_time = time.time()
 
 for csv_file in os.listdir(csv_dir):
@@ -61,9 +65,9 @@ log_time(log_file, "Data Insertion", time.time() - start_time)
 # 4. Execute another SQL file for ALTER commands
 
 path = "TPC-DS-MySQL/tools/tpcds_ri.sql"
+session.run_sql("SET FOREIGN_KEY_CHECKS=0;")
 start_time = time.time()
 
-# path = "tools/tpcds_ri.sql"
 with open(path, "r") as f:
     sql_commands = f.read().split(';')
     for command in sql_commands:
@@ -75,6 +79,7 @@ with open(path, "r") as f:
             else:
                 print("Success:", command)
 log_time(log_file, "Referential Integrity", time.time() - start_time)
+session.run_sql("SET FOREIGN_KEY_CHECKS=1;")
 
 # 5. Run ANALYZE on all the tables
 tables = session.run_sql("SHOW TABLES;").fetch_all()

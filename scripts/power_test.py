@@ -1,3 +1,4 @@
+import argparse
 import mysql.connector
 from datetime import datetime
 import os
@@ -44,9 +45,9 @@ def execute_queries(queries, cursor) -> dict:
 
 
 # Function to save results to a file
-def save_results_to_file(query_times):
+def save_results_to_file(query_times, scale_factor):
     uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-    filename = f"results\\power_test_{uid}.txt"
+    filename = f"results\\power_test_sf={scale_factor}_{uid}.txt"
     with open(filename, "w") as f:
         for time in query_times.values():
             f.write(f"{time}\n")
@@ -54,10 +55,9 @@ def save_results_to_file(query_times):
 
 
 # Function to plot horizontal histogram
-def plot_histogram(query_times):
+def plot_histogram(query_times, scale_factor):
     uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-    filename = f"results/power_test_{uid}.png"
-    # Calculate the number of queries to determine figure size
+    filename = f"results/power_test_sf={scale_factor}_{uid}.png"
     # Create the horizontal bar chart
     filenames, times = zip(*query_times.items())
     query_times_df = pd.DataFrame({"Query Number": filenames, "Time (seconds)": times})
@@ -78,31 +78,39 @@ def plot_histogram(query_times):
     plt.show()
 
 
-def perform_power_test(directory):
+def perform_power_test(scale_factor, queries_directory):
     try:
+        database = "tpcds" if scale_factor == 1 else f"tpcds{scale_factor}"
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
             password="password",
-            database="tpcds",
+            database=database,
             charset="utf8",
         )
         cursor = conn.cursor()
-        queries = read_sql_files(directory)
+        queries = read_sql_files(queries_directory)
         query_times = execute_queries(queries, cursor)
     except mysql.connector.Error as e:
         print(f"Connection failed: {e}")
     except KeyboardInterrupt:
         print("User interrupted the process.")
     else:
-        save_results_to_file(query_times)
-        plot_histogram(query_times)
+        save_results_to_file(query_times, scale_factor)
+        plot_histogram(query_times, scale_factor)
     finally:
         cursor.close()
         conn.close()
 
-# Specify the directory containing the SQL files
-directory = "queries_optimized"
 
-# Run the power test
-perform_power_test(directory)
+def main():
+    # Specify the directory containing the SQL files
+    parser = argparse.ArgumentParser(description="Perform power test (provide SF and location of queries)")
+    parser.add_argument('--sf', type=int, default=1, help='An integer input for SF. Default is 1.')
+    parser.add_argument('--qdir', type=str, default="mysql_queries_qualified", help='Directory for queries to execute')
+    args = parser.parse_args()
+    # Run the power test
+    perform_power_test(args.sf, args.qdir)
+
+if __name__ == "__main__":
+    main()
