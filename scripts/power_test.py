@@ -75,7 +75,7 @@ def plot_histogram(query_times, scale_factor):
     plt.title("Time Taken for Each Query", fontsize=14)
     # Show the plot
     plt.savefig(filename)
-    plt.show()
+    # plt.show()
 
 
 def perform_power_test(scale_factor, queries_directory):
