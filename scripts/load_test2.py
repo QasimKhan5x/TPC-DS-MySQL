@@ -92,6 +92,35 @@ for table in tables:
 end_time = time.time()
 log_time(log_file, "Analyze Tables", end_time - start_time)
 
-elapsed_time = end_time - initial_time
+
+
+# 6. Create EADS
+q39_ct = """CREATE TABLE MV_INV (
+    W_WAREHOUSE_NAME varchar(20),
+    W_WAREHOUSE_SK integer,
+    I_ITEM_SK integer,
+    D_MOY integer,
+    D_YEAR integer,
+    STDEV float,
+    MEAN float
+);"""
+q39_data = """INSERT INTO MV_INV
+    SELECT
+        W_WAREHOUSE_NAME,
+        W_WAREHOUSE_SK,
+        I_ITEM_SK,
+        D_MOY,
+        D_YEAR,
+        STDDEV_SAMP(INV_QUANTITY_ON_HAND) AS STDEV,
+        AVG(INV_QUANTITY_ON_HAND) AS MEAN
+    FROM DATE_DIM
+        JOIN INVENTORY ON INV_DATE_SK = D_DATE_SK
+        JOIN ITEM ON INV_ITEM_SK = I_ITEM_SK
+        JOIN WAREHOUSE ON INV_WAREHOUSE_SK = W_WAREHOUSE_SK
+    GROUP BY W_WAREHOUSE_NAME, W_WAREHOUSE_SK, I_ITEM_SK, D_MOY, D_YEAR;"""
+session.run_sql(q39_ct)
+session.run_sql(q39_data)
+
 # Measure the end time and calculate total time taken
-print("Total time taken:", elapsed_time, "seconds")
+elapsed_time = time.time() - initial_time
+log_time(log_file, "Total", elapsed_time, "seconds")

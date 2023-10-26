@@ -190,9 +190,9 @@ if __name__ == "__main__":
             modified_query = modified_query.replace(
                 "c_last_review_date_sk", "c_last_review_date"
             )
-        if "cast(revenue as int)" in modified_query:
+        if "cast((revenue/50) as int)" in modified_query:
             modified_query = modified_query.replace(
-                "cast(revenue as int)", "cast(revenue as signed)"
+                "cast((revenue/50) as int)", "cast((revenue/50) as int)"
             )
         with open(os.path.join(tgt_dir, os.path.basename(filepath)), "w") as f:
             f.write(modified_query)

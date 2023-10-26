@@ -1,16 +1,25 @@
 import argparse
-import mysql.connector
-from datetime import datetime
 import os
 import re
+from datetime import datetime
+
 import matplotlib.pyplot as plt
-import seaborn as sns
+import mysql.connector
 import pandas as pd
+import seaborn as sns
+
+
+def extract_number(s):
+    # Extract the number from the string using a regex
+    match = re.search(r"(\d+)", s)
+    if match:
+        return int(match.group(1))
+    return 0
 
 
 def read_sql_files(directory):
     queries = {}
-    for filename in sorted(os.listdir(directory)):
+    for filename in sorted(os.listdir(directory), key=extract_number):
         if filename.endswith(".sql"):
             with open(os.path.join(directory, filename), "r") as f:
                 sql_content = f.read()
@@ -24,18 +33,23 @@ def read_sql_files(directory):
 # Function to execute queries and measure time
 def execute_queries(queries, cursor) -> dict:
     query_times = {}
-    print("Executing queries...")
     for filename, query in queries.items():
-        print("Executing query", filename, end="... ")
-        start_time = datetime.now()
+        print("Executing", filename, end="...\n")
         try:
+            # warm up the cache
+            cursor.execute(query)
+            cursor.fetchall()
+            while cursor.nextset():
+                pass
+            # measured performance of cached query
+            start_time = datetime.now()
             cursor.execute(query)
             cursor.fetchall()
             while cursor.nextset():
                 pass
             end_time = datetime.now()
             elapsed_time = (end_time - start_time).total_seconds()
-            print(f"Query {filename} took {elapsed_time} seconds")
+            print(f"{filename} took {elapsed_time} seconds")
             query_times[filename] = elapsed_time
         except mysql.connector.errors.DatabaseError as e:
             with open("errors.txt", "a") as error_file:
@@ -105,12 +119,22 @@ def perform_power_test(scale_factor, queries_directory):
 
 def main():
     # Specify the directory containing the SQL files
-    parser = argparse.ArgumentParser(description="Perform power test (provide SF and location of queries)")
-    parser.add_argument('--sf', type=int, default=1, help='An integer input for SF. Default is 1.')
-    parser.add_argument('--qdir', type=str, default="mysql_queries_qualified", help='Directory for queries to execute')
+    parser = argparse.ArgumentParser(
+        description="Perform power test (provide SF and location of queries)"
+    )
+    parser.add_argument(
+        "--sf", type=int, default=1, help="An integer input for SF. Default is 1."
+    )
+    parser.add_argument(
+        "--qdir",
+        type=str,
+        default="mysql_queries_qualified",
+        help="Directory for queries to execute",
+    )
     args = parser.parse_args()
     # Run the power test
     perform_power_test(args.sf, args.qdir)
+
 
 if __name__ == "__main__":
     main()
