@@ -33,7 +33,7 @@ select  channel, item, return_ratio, return_rank, currency_rank from
                          and d_moy = 11
  		group by ws.ws_item_sk
  	) in_web
- ) we t1b
+ ) web
  where 
  (
  web.return_rank <= 10
