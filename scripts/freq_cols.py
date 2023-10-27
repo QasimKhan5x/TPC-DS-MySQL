@@ -29,12 +29,17 @@ def search_and_count_columns(directory, column_names):
                 with open(file_path, 'r') as f:
                     content = f.read().lower()  # Read and convert to lowercase for case-insensitive matching
                     for table, columns in column_names.items():
-                        for column in columns:
-                            # Use regex to find whole word matches
-                            pattern = r'\b{}\b'.format(re.escape(column.lower()))
-                            matches = len(re.findall(pattern, content))
-                            column_key = f"{table}.{column}"
-                            column_counts[column_key] = column_counts.get(column_key, 0) + matches
+                        if table in ["date_dim", "inventory", "catalog_sales", 
+                                    "web_sales", "store_sales", "store_returns",
+                                    "customer_demographics"]:
+                            for column in columns:
+                                # Use regex to find whole word matches
+                                pattern = r'\b{}\b'.format(re.escape(column.lower()))
+                                matches = len(re.findall(pattern, content))
+                                column_key = f"{table}.{column}"
+                                column_counts[column_key] = column_counts.get(column_key, 0) + matches
+                                if column_counts[column_key] < 10:
+                                    del column_counts[column_key]
 
     return column_counts
 
@@ -47,5 +52,5 @@ def main(directory):
 
     return sorted_column_counts
 
-result = main("queries_optimized")
+result = main("queries\\1\\qmod")
 pprint(result)

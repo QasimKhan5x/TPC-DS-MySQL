@@ -1,5 +1,6 @@
-# \source "E:\Documents\BDMA\ULB\Data Warehouses\project1\DSGen-software-code-3.2.0rc1\TPC-DS-MySQL\scripts\load_test2.py"
+# \source "E:\Documents\BDMA\ULB\Data Warehouses\project1\DSGen-software-code-3.2.0rc1\TPC-DS-MySQL\scripts\load_test2.py" 1
 
+import argparse
 from mysqlsh import mysql
 import mysqlsh
 import time
@@ -9,7 +10,11 @@ from datetime import datetime
 base_dir = "E:/Documents/BDMA/ULB/Data Warehouses/project1/DSGen-software-code-3.2.0rc1"
 os.chdir(base_dir)
 
-sf = 8
+parser = argparse.ArgumentParser(description="load test")
+parser.add_argument("sf", type=int, help="An integer input for SF")
+args = parser.parse_args() 
+
+sf = args.sf
 uid = datetime.now().strftime("%m-%d_%H-%M-%S")
 log_file = f"TPC-DS-MySQL/results/load_test_sf={sf}_{uid}.txt"
 
@@ -123,4 +128,4 @@ session.run_sql(q39_data)
 
 # Measure the end time and calculate total time taken
 elapsed_time = time.time() - initial_time
-log_time(log_file, "Total", elapsed_time, "seconds")
+log_time(log_file, "Total", elapsed_time)
