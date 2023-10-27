@@ -51,7 +51,7 @@ def execute_queries(queries, cursor) -> dict:
             print('executing warmup query')
             start_time = datetime.now()
             session.run_sql(q)
-            print('executed warmup query. took', time.time() - start_time, 'seconds')
+            print('executed warmup query. took', (datetime.now() - start_time).total_seconds(), 'seconds')
             start_time = datetime.now()
             session.run_sql(q)
             end_time = datetime.now()
