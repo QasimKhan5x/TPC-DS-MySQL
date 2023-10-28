@@ -1,34 +1,37 @@
 # \source "E:\Documents\BDMA\ULB\Data Warehouses\project1\DSGen-software-code-3.2.0rc1\TPC-DS-MySQL\scripts\load_test2.py" 1
 
 import argparse
-from mysqlsh import mysql
-import mysqlsh
-import time
 import os
+import time
 from datetime import datetime
+
+import mysqlsh
+from mysqlsh import mysql
 
 base_dir = "E:/Documents/BDMA/ULB/Data Warehouses/project1/DSGen-software-code-3.2.0rc1"
 os.chdir(base_dir)
 
 parser = argparse.ArgumentParser(description="load test")
 parser.add_argument("sf", type=int, help="An integer input for SF")
-args = parser.parse_args() 
+args = parser.parse_args()
 
 sf = args.sf
 uid = datetime.now().strftime("%m-%d_%H-%M-%S")
 log_file = f"TPC-DS-MySQL/results/load_test_sf={sf}_{uid}.txt"
+
 
 # Function to log time measurements
 def log_time(log_file, label, elapsed_time):
     with open(log_file, "a") as f:
         f.write(f"{label}: {elapsed_time}\n")
 
+
 # Connect to the MySQL server
-session = mysql.get_classic_session('mysql://root:password@localhost:3306')
+session = mysql.get_classic_session("mysql://root:password@localhost:3306")
 
 # 1. Drop database if it exists and then create it
 
-db_name = "tpcds"  if sf == 1 else f"tpcds{sf}"
+db_name = "tpcds" if sf == 1 else f"tpcds{sf}"
 session.run_sql(f"DROP DATABASE IF EXISTS {db_name};")
 session.run_sql(f"CREATE DATABASE {db_name};")
 session.run_sql(f"USE {db_name};")
@@ -40,11 +43,11 @@ initial_time = time.time()
 
 path = "TPC-DS-MySQL/tools/tpcds.sql"
 with open(path, "r") as f:
-    sql_commands = f.read().split(';')
+    sql_commands = f.read().split(";")
     for command in sql_commands:
         if command.strip():
             session.run_sql(command)
-            
+
 log_time(log_file, "Table Creation", time.time() - initial_time)
 
 # 3. Load data into tables from CSV files using util.import_table
@@ -53,14 +56,16 @@ csv_dir = f"data/{sf}"
 start_time = time.time()
 
 for csv_file in os.listdir(csv_dir):
-    table_name = os.path.splitext(csv_file)[0]  # Assuming table name is same as CSV file name without extension
+    table_name = os.path.splitext(csv_file)[
+        0
+    ]  # Assuming table name is same as CSV file name without extension
     full_path = os.path.join(csv_dir, csv_file)
     options = {
         "schema": db_name,
         "table": table_name,
         "linesTerminatedBy": "\n",
         "fieldsTerminatedBy": "|",
-        "characterSet": "latin1"
+        "characterSet": "latin1",
     }
     mysqlsh.globals.util.import_table(full_path, options)
 
@@ -74,7 +79,7 @@ session.run_sql("SET FOREIGN_KEY_CHECKS=0;")
 start_time = time.time()
 
 with open(path, "r") as f:
-    sql_commands = f.read().split(';')
+    sql_commands = f.read().split(";")
     for command in sql_commands:
         if command.strip():
             try:
@@ -93,10 +98,9 @@ start_time = time.time()
 for table in tables:
     table_name = table[0]
     session.run_sql(f"ANALYZE TABLE {table_name};")
-    
+
 end_time = time.time()
 log_time(log_file, "Analyze Tables", end_time - start_time)
-
 
 
 # 6. Create EADS

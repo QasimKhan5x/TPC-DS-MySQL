@@ -14,8 +14,8 @@ import seaborn as sns
 
 # session = mysql.get_classic_session("mysql://root:password@localhost:3306")
 
-base_dir = "E:/Documents/BDMA/ULB/Data Warehouses/project1/DSGen-software-code-3.2.0rc1/TPC-DS-MySQL"
-os.chdir(base_dir)
+# base_dir = "E:/Documents/BDMA/ULB/Data Warehouses/project1/DSGen-software-code-3.2.0rc1/TPC-DS-MySQL"
+# os.chdir(base_dir)
 
 
 def extract_number(s):
@@ -34,8 +34,8 @@ def read_sql_files(directory):
                 sql_content = f.read()
                 sql_content = re.sub(r"--.*$", "", sql_content, flags=re.MULTILINE)
                 sql_content = " ".join(sql_content.split())
-                # remove .sql from filename
-                queries[filename[:-4]] = sql_content
+                # only capture query number
+                queries[extract_number(filename)] = sql_content
     return queries
 
 
@@ -43,6 +43,9 @@ def read_sql_files(directory):
 def execute_queries(queries, cursor) -> dict:
     query_times = {}
     for filename, query in queries.items():
+        # if filename == 'query72':
+            ## skip bc its too long!
+            # continue
         print("Executing", filename, end="...\n")
         total_time = 0
         query_lst = query.strip().split(";")
@@ -104,7 +107,7 @@ def plot_histogram(query_times, scale_factor):
     # Increase y-tick font size
     ax.set_yticklabels(ax.get_yticklabels(), size=5)
     # Add title
-    plt.title("Time Taken for Each Query", fontsize=14)
+    plt.title(f"Time Taken for Each Query. SF={scale_factor}", fontsize=14)
     # Show the plot
     plt.savefig(filename)
     plt.show()
