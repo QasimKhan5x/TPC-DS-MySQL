@@ -34,8 +34,9 @@ cursor = conn.cursor()
 
 
 def run_query(query):
-    result = cursor.execute(query)
-    print(result)
+    print("executing query:", query)
+    cursor.execute(query)
+    print(cursor.rowcount, "rows affected.")
     cursor.fetchall()
     while cursor.nextset():
         pass
@@ -126,9 +127,11 @@ def data_maintenance(all_files: list[str]):
     start_time = time.time()
     for fact in ["catalog", "store", "web"]:
         for date in fact_dates:
-            fact_delete_data_maintenance(date, fact)
+            pass
+            # fact_delete_data_maintenance(date, fact)
     for date in inventory_dates:
-        inventory_delete_data_maintenance(date)
+        pass
+        # inventory_delete_data_maintenance(date)
     end_time = time.time()
     deletion_elapsed_time = end_time - start_time
     log_time(log_file, "Deletion", deletion_elapsed_time)
@@ -156,19 +159,23 @@ def data_maintenance(all_files: list[str]):
     ]
     data_files = list(
         filter(
-            lambda x: os.path.basename(x).split(".")[0] in required_flat_files,
+            lambda x: os.path.basename(x).split(".")[0][:-2] in required_flat_files,
             all_files,
         )
     )
+    # replace / with \ for Windows
+    data_files = list(map(os.path.abspath, data_files))
+    # replace \ with \\ for SQL
+    data_files = list(map(lambda x: x.replace("\\", "\\\\"), data_files))
     start_time = time.time()
     for data_file in data_files:
-        cursor.execute(
-            (
-                f"LOAD DATA LOCAL INFILE '{data_file}' "
-                f"INTO TABLE {os.path.basename(data_file).split('.')[0]} "
-                "FIELDS TERMINATED BY '|' LINES TERMINATED BY '\\n';"
-            )
+        query = (
+            f"LOAD DATA LOCAL INFILE '{data_file}' "
+            f"INTO TABLE {os.path.basename(data_file).split('.')[0][:-2]} "
+            "FIELDS TERMINATED BY '|' LINES TERMINATED BY '\\n';"
         )
+        cursor.execute(query)
+        print(cursor.rowcount, "rows affected.")
     end_time = time.time()
     load_data_elapsed_time = end_time - start_time
     log_time(log_file, "Data Insertion", load_data_elapsed_time)
@@ -245,8 +252,9 @@ def data_maintenance(all_files: list[str]):
 
 
 t1 = data_maintenance(all_files_1)
+conn.commit()
 t2 = data_maintenance(all_files_2)
 conn.commit()
 cursor.close()
 conn.close()
-print(f"Total time taken: {t1} + {t2} = {t1 + t2} seconds.")
+log_time(log_file, f"Total = {t1} + {t2}", t1 + t2)
