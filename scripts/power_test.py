@@ -10,8 +10,8 @@ import mysql.connector
 import pandas as pd
 import seaborn as sns
 
-from utils import extract_number
-from system_stats import stats_thread
+from scripts.system_stats import stats_thread
+from scripts.utils import extract_number
 
 
 def read_sql_files(directory):
@@ -28,8 +28,13 @@ def read_sql_files(directory):
 
 
 # Function to execute queries and measure time
-def execute_queries(queries, cursor, monitor_resource_utils=False, 
-                    cold_results_dir=None, warm_results_dir=None) -> dict:
+def execute_queries(
+    queries,
+    cursor,
+    monitor_resource_utils=False,
+    cold_results_dir=None,
+    warm_results_dir=None,
+) -> dict:
     query_times = {}
     for filename, query in queries.items():
         print("Executing", filename, end="...\n")
@@ -53,7 +58,7 @@ def execute_queries(queries, cursor, monitor_resource_utils=False,
                 # stop thread
                 condition.set()
                 # otherwise the thread writes the next print statement to the log as well
-                time.sleep(0.5) 
+                time.sleep(0.5)
             print(
                 "executed warmup query. took",
                 time.time() - start_time,
@@ -79,7 +84,7 @@ def execute_queries(queries, cursor, monitor_resource_utils=False,
                 # stop thread
                 condition.set()
                 # otherwise the thread writes the next print statement to the log as well
-                time.sleep(0.5) 
+                time.sleep(0.5)
 
         print(f"{filename} took {total_time} seconds")
         query_times[filename] = total_time
@@ -139,7 +144,13 @@ def power_test(scale_factor, queries_directory, uid, monitor_resource_utils=Fals
         )
         cursor = conn.cursor()
         queries = read_sql_files(queries_directory)
-        query_times = execute_queries(queries, cursor, monitor_resource_utils, cold_results_directory_path, warm_results_directory_path)
+        query_times = execute_queries(
+            queries,
+            cursor,
+            monitor_resource_utils,
+            cold_results_directory_path,
+            warm_results_directory_path,
+        )
         total_time = sum(query_times.values())
     except mysql.connector.Error as e:
         print(f"Connection failed: {e}")
@@ -175,7 +186,10 @@ if __name__ == "__main__":
         help="Directory for queries to execute",
     )
     parser.add_argument(
-        "--mru", action='store_true', default=False, help="Whether to monitor resource utils"
+        "--mru",
+        action="store_true",
+        default=False,
+        help="Whether to monitor resource utils",
     )
 
     args = parser.parse_args()
