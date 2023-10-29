@@ -1,5 +1,3 @@
-# \source "E:\Documents\BDMA\ULB\Data Warehouses\project1\DSGen-software-code-3.2.0rc1\TPC-DS-MySQL\scripts\power_test.py"
-
 import argparse
 import os
 import re
@@ -12,13 +10,6 @@ import pandas as pd
 import seaborn as sns
 
 from scripts.utils import extract_number
-
-# from mysqlsh import mysql
-
-# session = mysql.get_classic_session("mysql://root:password@localhost:3306")
-
-# base_dir = "E:/Documents/BDMA/ULB/Data Warehouses/project1/DSGen-software-code-3.2.0rc1/TPC-DS-MySQL"
-# os.chdir(base_dir)
 
 
 def read_sql_files(directory):
@@ -131,7 +122,13 @@ def power_test(scale_factor, queries_directory, uid):
         return total_time
 
 
-def main():
+def main(args):
+    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
+    # Run the power test
+    power_test(args.sf, args.qdir, uid)
+
+
+if __name__ == "__main__":
     # Specify the directory containing the SQL files
     parser = argparse.ArgumentParser(
         description="Perform power test (provide SF and location of queries)"
@@ -146,24 +143,4 @@ def main():
         help="Directory for queries to execute",
     )
     args = parser.parse_args()
-    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-    # Run the power test
-    power_test(args.sf, args.qdir, uid)
-
-
-if __name__ == "__main__":
-    main()
-
-    # use if running on mysql shell
-    # sf = 1
-    # perform_power_test(sf, f"queries/{sf}/qmod")
-    # perform_power_test(sf, f"queries/{sf}/qmod_opt")
-    # sf = 2
-    # perform_power_test(sf, f"queries/{sf}/qmod")
-    # perform_power_test(sf, f"queries/{sf}/qmod_opt")
-    # sf = 4
-    # perform_power_test(sf, f"queries/{sf}/qmod")
-    # perform_power_test(sf, f"queries/{sf}/qmod_opt")
-    # sf = 8
-    # perform_power_test(sf, f"queries/{sf}/qmod")
-    # perform_power_test(sf, f"queries/{sf}/qmod_opt")
+    main(args)
