@@ -7,66 +7,15 @@ from os.path import join as pjoin
 
 import mysql.connector
 
-
-# Function to log time measurements
-def log_time(filename, label, elapsed_time):
-    with open(filename, "a") as log_file:
-        log_file.write(f"{label}: {elapsed_time}\n")
+from scripts.utils import log_time, relax_connection, reset_connection_settings
 
 
-parser = argparse.ArgumentParser(description="load test")
-parser.add_argument("sf", type=int, help="An integer input for SF")
-parser.add_argument("n", type=int, help="DM Test 1 or 2")
-args = parser.parse_args()
-
-uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-log_file = f"results/dm_test_sf={args.sf}_n={args.n}_{uid}.txt"
-
-db_name = "tpcds_dm" if args.sf == 1 else f"tpcds{args.sf}"
-conn = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="password",
-    database=db_name,
-    allow_local_infile=True,
-)
-cursor = conn.cursor()
-
-
-def run_query(query):
-    print("executing query:", query)
+def run_query(cursor, query):
     cursor.execute(query)
     print(cursor.rowcount, "rows affected.")
     cursor.fetchall()
     while cursor.nextset():
         pass
-
-
-# S_q = 4
-if args.n == 1:
-    path_1 = pjoin("..", "data-maintenance", str(args.sf), "1")
-    path_2 = pjoin("..", "data-maintenance", str(args.sf), "2")
-else:
-    path_1 = pjoin("..", "data-maintenance", str(args.sf), "3")
-    path_2 = pjoin("..", "data-maintenance", str(args.sf), "4")
-all_files_1 = glob(pjoin(path_1, "*.csv"))
-all_files_2 = glob(pjoin(path_2, "*.csv"))
-
-
-def relax_connection():
-    """Relax the connection properties to improve performance"""
-    cursor.execute("SET autocommit=0;")
-    cursor.execute("SET unique_checks=0;")
-    cursor.execute("SET foreign_key_checks=0;")
-    cursor.execute("SET sql_log_bin=0;")
-
-
-def reset_connection_settings():
-    """Reset the connection properties to their defaults"""
-    cursor.execute("SET autocommit=1;")
-    cursor.execute("SET unique_checks=1;")
-    cursor.execute("SET foreign_key_checks=1;")
-    cursor.execute("SET sql_log_bin=1;")
 
 
 def fact_delete_data_maintenance(dates, prefix):
@@ -99,8 +48,8 @@ def fact_delete_data_maintenance(dates, prefix):
         SELECT d_date_sk FROM date_dim
         WHERE d_date between '{start}' and '{end}'
     );"""
-    run_query(deletion_query_1)
-    run_query(deletion_query_2)
+    run_query(cursor, deletion_query_1)
+    run_query(cursor, deletion_query_2)
 
 
 def inventory_delete_data_maintenance(dates):
@@ -110,11 +59,11 @@ def inventory_delete_data_maintenance(dates):
         SELECT d_date_sk FROM date_dim
         WHERE d_date between '{start}' and '{end}' 
     );"""
-    run_query(deletion_query)
+    run_query(cursor, deletion_query)
 
 
-def data_maintenance(all_files: list[str]):
-    relax_connection()
+def data_maintenance(cursor, all_files: list[str], log_file: str):
+    relax_connection(cursor)
     # 1. data deletion
     deletion_files = list(filter(lambda x: "delete" in x, all_files))
     facts_file, inventory_file = deletion_files
@@ -127,11 +76,9 @@ def data_maintenance(all_files: list[str]):
     start_time = time.time()
     for fact in ["catalog", "store", "web"]:
         for date in fact_dates:
-            pass
-            # fact_delete_data_maintenance(date, fact)
+            fact_delete_data_maintenance(date, fact)
     for date in inventory_dates:
-        pass
-        # inventory_delete_data_maintenance(date)
+        inventory_delete_data_maintenance(date)
     end_time = time.time()
     deletion_elapsed_time = end_time - start_time
     log_time(log_file, "Deletion", deletion_elapsed_time)
@@ -202,7 +149,7 @@ def data_maintenance(all_files: list[str]):
     start_time = time.time()
     for view, table in zip(views, tables):
         query = f"INSERT INTO {table} SELECT * FROM {view};"
-        run_query(query)
+        run_query(cursor, query)
     end_time = time.time()
     insertion_elapsed_time = end_time - start_time
     log_time(log_file, "Insertion", insertion_elapsed_time)
@@ -232,13 +179,13 @@ def data_maintenance(all_files: list[str]):
             JOIN WAREHOUSE ON INV_WAREHOUSE_SK = W_WAREHOUSE_SK
         GROUP BY W_WAREHOUSE_NAME, W_WAREHOUSE_SK, I_ITEM_SK, D_MOY, D_YEAR;"""
     start_time = time.time()
-    run_query(q39_drop)
-    run_query(q39_ct)
-    run_query(q39_data)
+    run_query(cursor, q39_drop)
+    run_query(cursor, q39_ct)
+    run_query(cursor, q39_data)
     end_time = time.time()
     view_updation_time = end_time - start_time
     log_time(log_file, "View Updation", view_updation_time)
-    reset_connection_settings()
+    reset_connection_settings(cursor)
 
     total_time = (
         deletion_elapsed_time
@@ -251,10 +198,46 @@ def data_maintenance(all_files: list[str]):
     return total_time
 
 
-t1 = data_maintenance(all_files_1)
-conn.commit()
-t2 = data_maintenance(all_files_2)
-conn.commit()
-cursor.close()
-conn.close()
-log_time(log_file, f"Total = {t1} + {t2}", t1 + t2)
+def data_maintenance_test(test_num, scale_factor, uid):
+    log_file = f"results/dm_test_sf={scale_factor}_n={test_num}_{uid}.txt"
+
+    db_name = "tpcds" if scale_factor == 1 else f"tpcds{scale_factor}"
+    conn = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="password",
+        database=db_name,
+        allow_local_infile=True,
+        consume_results=True,
+    )
+    cursor = conn.cursor()
+    # S_q = 4
+    if test_num == 1:
+        path_1 = pjoin("..", "data-maintenance", str(scale_factor), "1")
+        path_2 = pjoin("..", "data-maintenance", str(scale_factor), "2")
+    else:
+        path_1 = pjoin("..", "data-maintenance", str(scale_factor), "3")
+        path_2 = pjoin("..", "data-maintenance", str(scale_factor), "4")
+    all_files_1 = glob(pjoin(path_1, "*.csv"))
+    all_files_2 = glob(pjoin(path_2, "*.csv"))
+    t1 = data_maintenance(cursor, all_files_1, log_file)
+    conn.commit()
+    t2 = data_maintenance(cursor, all_files_2, log_file)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    log_time(log_file, f"Total = {t1} + {t2}", t1 + t2)
+    return t1, t2, t1 + t2
+
+
+def main(args):
+    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
+    data_maintenance_test(args.test_num, args.sf, uid)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="load test")
+    parser.add_argument("sf", type=int, help="An integer input for SF")
+    parser.add_argument("n", type=int, help="DM Test 1 or 2")
+    args = parser.parse_args()
+    main(args)

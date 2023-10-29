@@ -11,8 +11,6 @@ sudo service mysql start
 
 
 ./dsqgen -DIRECTORY ../query_templates/ \
--VERBOSE Y -OUTPUT_DIR ../queries/1 \
+-VERBOSE Y -OUTPUT_DIR ../qstreams/6 \
 -INPUT ../query_templates/templates.lst \
--QUALIFY 1 \
--RNGSEED 42 \
--DIALECT mysql
+-RNGSEED 42 -DIALECT mysql -STREAMS 4 -SCALE 6

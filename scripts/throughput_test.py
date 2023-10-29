@@ -1,81 +1,89 @@
+import argparse
 import os
-import re
-import random
 import time
-import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
-import mysql.connector
 from mysql.connector.pooling import MySQLConnectionPool
-
-# Initialize Connection Pool
-dbconfig = {
-    "host": "localhost",
-    "user": "root",
-    "password": "password",
-    "database": "tpcds",
-    "charset": "utf8",
-}
-cnxpool = MySQLConnectionPool(pool_name="throughput_pool", pool_size=4, **dbconfig)
 
 
 def read_sql_files(directory):
-    queries = {}
+    queries = []
     for filename in sorted(os.listdir(directory)):
         if filename.endswith(".sql"):
-            with open(os.path.join(directory, filename), "r") as f:
+            with open(os.path.join(directory, filename)) as f:
                 sql_content = f.read()
-                sql_content = re.sub(r"--.*$", "", sql_content, flags=re.MULTILINE)
-                sql_content = " ".join(sql_content.split())
-                # remove .sql from filename
-                queries[filename[:-4]] = sql_content
+            queries.append(sql_content)
     return queries
 
 
 # Function to execute queries for a single thread
-def execute_queries_thread(queries, thread_id):
+def execute_query_stream(qstream, cnxpool):
     conn = cnxpool.get_connection()
     cursor = conn.cursor()
-
-    shuffled_queries = random.sample(list(queries.values()), len(queries))
-    print(f"Thread-{thread_id} is starting")
-
-    for i, query in enumerate(shuffled_queries):
-        try:
-            cursor.execute(query)
-            cursor.fetchall()
-            while cursor.nextset():
-                pass
-        except mysql.connector.errors.DatabaseError as e:
-            print(f"Thread-{thread_id} Query-{i+1} failed: {e}")
+    for result in cursor.execute(qstream, multi=True):
+        if result.with_rows:
+            result.fetchall()
+    conn.commit()
     cursor.close()
     conn.close()
 
 
 # Function to perform the throughput test
-def perform_throughput_test(directory):
+def throughput_test(sf, directory, uid):
+    # Initialize Connection Pool
+    dbconfig = {
+        "host": "localhost",
+        "user": "root",
+        "password": "password",
+        "database": f"tpcds" if sf == 1 else f"tpcds_sf{sf}",
+        "charset": "utf8",
+        "consume_results": True,
+    }
+    cnxpool = MySQLConnectionPool(pool_name="throughput_pool", pool_size=4, **dbconfig)
     queries = read_sql_files(directory)
-
-    # Create all threads
-    threads = []
-    for i in range(4):
-        t = threading.Thread(target=execute_queries_thread, args=(queries, i))
-        threads.append(t)
-
     start_time = time.time()
-    # Start all threads
-    for t in threads:
-        t.start()
-
-    # Wait for all threads to complete
-    for t in threads:
-        t.join()
-
+    # Create 4 threads and execute the function for each SQL string
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        # Using a lambda to pass cnxpool to the execute_sql_statements function
+        executor.map(lambda sql: execute_query_stream(sql, cnxpool), queries)
     # End time
     end_time = time.time()
+    elapsed_time = end_time - start_time
+    with open(f"results/tp_sf={sf}_{uid}.txt", "w") as f:
+        f.write(f"Total Throughput Time: {elapsed_time} seconds\n")
+        f.write(f"Scale Factor: {sf}\n")
+        f.write(f"Number of Queries: {len(queries)}\n")
+        f.write(f"Queries Directory: {directory}\n")
+    return elapsed_time
 
-    print(f"Total Throughput Time: {end_time - start_time} seconds")
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-sf",
+        "--scale-factor",
+        type=int,
+        default=1,
+        help="Scale factor to use for the throughput test",
+    )
+    parser.add_argument(
+        "-d",
+        "--directory",
+        type=str,
+        default="queries",
+        help="Directory containing the SQL files",
+    )
+    parser.add_argument(
+        "-n",
+        "--num",
+        type=int,
+        default=1,
+        help="Throughput test 1 or 2",
+    )
+    args = parser.parse_args()
 
-# After the power test is done, run the throughput test
-directory = "mysql_queries_qualified"
-perform_throughput_test(directory)
+    sf = args.scale_factor
+    directory = f"{args.directory}/{sf}/qmod"
+    uid = f"n={args.n}_" + datetime.now().strftime("%m-%d_%H-%M-%S")
+    throughput_test(sf, directory, uid)

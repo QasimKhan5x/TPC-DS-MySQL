@@ -11,7 +11,7 @@ def find_all_derived_tables(sql_query):
     derived_table_indices = []
 
     # Initial pattern to find a potential starting point for a derived table
-    pattern = r"FROM\s*(?:[^,]*?,\s*)?\("
+    pattern = r"FROM\s*(?:[^,\(]*?,\s*)?\("
 
     # Current position in the SQL query
     curr_pos = 0
@@ -54,7 +54,7 @@ def find_all_derived_tables(sql_query):
 
 
 def derived_table_has_alias(query, end_ind):
-    return re.match(r" [a-zA-Z]", query[end_ind : end_ind + 2]) is not None
+    return re.match(r" {0,3}[a-zA-Z_]+", query[end_ind : end_ind + 4]) is not None
 
 
 def add_alias_if_missing(query):
@@ -171,18 +171,21 @@ if __name__ == "__main__":
     parser.add_argument("--sf", type=int, default=1)
     args = parser.parse_args()
 
-    original_queries = glob(f"queries/{args.sf}/*.sql")
-    tgt_dir = f"queries/{args.sf}/qmod"
+    original_queries = glob(f"qstreams/{args.sf}/*.sql")
+    tgt_dir = f"qstreams/{args.sf}/qmod"
+    if not os.path.exists(tgt_dir):
+        os.makedirs(tgt_dir)
 
     for filepath in original_queries:
         with open(filepath) as f:
             query = f.read().strip()
 
         modified_query = query
-        for fn in ["2.sql", "14.sql", "23.sql", "49.sql"]:
-            if filepath.endswith(fn):
-                modified_query = add_aliases_to_all_derived_tables(query)
-                break
+        modified_query = add_aliases_to_all_derived_tables(query)
+        # for fn in ["2.sql", "14.sql", "23.sql", "49.sql"]:
+        #     if filepath.endswith(fn):
+        #         modified_query = add_aliases_to_all_derived_tables(query)
+        #         break
         modified_query = correct_date_interval(modified_query)
         modified_query = rem_spaces_bw_func(modified_query, ["sum", "cast"])
         modified_query = convert_rollup_syntax(modified_query)
@@ -192,7 +195,10 @@ if __name__ == "__main__":
             )
         if "cast((revenue/50) as int)" in modified_query:
             modified_query = modified_query.replace(
-                "cast((revenue/50) as int)", "cast((revenue/50) as int)"
+                "cast((revenue/50) as int)", "cast((revenue/50) as unsigned)"
             )
         with open(os.path.join(tgt_dir, os.path.basename(filepath)), "w") as f:
             f.write(modified_query)
+        # still remaining
+        # full outer join
+        # issue with q49

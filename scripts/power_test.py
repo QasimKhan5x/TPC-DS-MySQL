@@ -3,6 +3,7 @@
 import argparse
 import os
 import re
+import time
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -10,20 +11,14 @@ import mysql.connector
 import pandas as pd
 import seaborn as sns
 
+from scripts.utils import extract_number
+
 # from mysqlsh import mysql
 
 # session = mysql.get_classic_session("mysql://root:password@localhost:3306")
 
 # base_dir = "E:/Documents/BDMA/ULB/Data Warehouses/project1/DSGen-software-code-3.2.0rc1/TPC-DS-MySQL"
 # os.chdir(base_dir)
-
-
-def extract_number(s):
-    # Extract the number from the string using a regex
-    match = re.search(r"(\d+)", s)
-    if match:
-        return int(match.group(1))
-    return 0
 
 
 def read_sql_files(directory):
@@ -43,9 +38,6 @@ def read_sql_files(directory):
 def execute_queries(queries, cursor) -> dict:
     query_times = {}
     for filename, query in queries.items():
-        # if filename == 'query72':
-            ## skip bc its too long!
-            # continue
         print("Executing", filename, end="...\n")
         total_time = 0
         query_lst = query.strip().split(";")
@@ -54,25 +46,24 @@ def execute_queries(queries, cursor) -> dict:
             q = q.strip()
             # warm up the cache
             print("executing warmup query")
-            start_time = datetime.now()
-            # session.run_sql(q)
+            start_time = time.time()
             cursor.execute(query)
             cursor.fetchall()
             while cursor.nextset():
                 pass
             print(
                 "executed warmup query. took",
-                (datetime.now() - start_time).total_seconds(),
+                time.time() - start_time,
                 "seconds",
             )
-            start_time = datetime.now()
+            start_time = time.time()
             # session.run_sql(q)
             cursor.execute(query)
             cursor.fetchall()
             while cursor.nextset():
                 pass
-            end_time = datetime.now()
-            elapsed_time = (end_time - start_time).total_seconds()
+            end_time = time.time()
+            elapsed_time = end_time - start_time
             total_time += elapsed_time
         print(f"{filename} took {total_time} seconds")
         query_times[filename] = total_time
@@ -80,8 +71,7 @@ def execute_queries(queries, cursor) -> dict:
 
 
 # Function to save results to a file
-def save_results_to_file(query_times, scale_factor):
-    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
+def save_results_to_file(query_times, scale_factor, uid):
     filename = f"results\\power_test_sf={scale_factor}_{uid}.txt"
     with open(filename, "w") as f:
         for time in query_times.values():
@@ -90,8 +80,7 @@ def save_results_to_file(query_times, scale_factor):
 
 
 # Function to plot horizontal histogram
-def plot_histogram(query_times, scale_factor):
-    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
+def plot_histogram(query_times, scale_factor, uid):
     filename = f"results/power_test_sf={scale_factor}_{uid}.png"
     # Create the horizontal bar chart
     filenames, times = zip(*query_times.items())
@@ -110,10 +99,11 @@ def plot_histogram(query_times, scale_factor):
     plt.title(f"Time Taken for Each Query. SF={scale_factor}", fontsize=14)
     # Show the plot
     plt.savefig(filename)
-    plt.show()
+    # plt.show()
 
 
-def perform_power_test(scale_factor, queries_directory):
+def power_test(scale_factor, queries_directory, uid):
+    total_time = 0
     try:
         database = "tpcds" if scale_factor == 1 else f"tpcds{scale_factor}"
         conn = mysql.connector.connect(
@@ -122,22 +112,23 @@ def perform_power_test(scale_factor, queries_directory):
             password="password",
             database=database,
             charset="utf8",
+            consume_results=True,
         )
         cursor = conn.cursor()
-        # cursor = None
-        # session.run_sql(f"USE {database};")
         queries = read_sql_files(queries_directory)
         query_times = execute_queries(queries, cursor)
+        total_time = sum(query_times.values())
     except mysql.connector.Error as e:
         print(f"Connection failed: {e}")
     except KeyboardInterrupt:
         print("User interrupted the process.")
     else:
-        save_results_to_file(query_times, scale_factor)
-        plot_histogram(query_times, scale_factor)
+        save_results_to_file(query_times, scale_factor, uid)
+        plot_histogram(query_times, scale_factor, uid)
     finally:
         cursor.close()
         conn.close()
+        return total_time
 
 
 def main():
@@ -151,12 +142,13 @@ def main():
     parser.add_argument(
         "--qdir",
         type=str,
-        default="mysql_queries_qualified",
+        default="queries/1/qmod",
         help="Directory for queries to execute",
     )
     args = parser.parse_args()
+    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
     # Run the power test
-    perform_power_test(args.sf, args.qdir)
+    power_test(args.sf, args.qdir, uid)
 
 
 if __name__ == "__main__":

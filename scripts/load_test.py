@@ -1,95 +1,34 @@
-import mysql.connector
-from mysql.connector import pooling
+import glob
 import os
 import time
-import glob
-from datetime import datetime
+from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor
-from collections import defaultdict
-import re
+from datetime import datetime
 
-# Function to log time measurements
-def log_time(filename, label, elapsed_time):
-    with open(filename, "a") as log_file:
-        log_file.write(f"{label}: {elapsed_time}\n")
+import mysql.connector
+from mysql.connector import pooling
 
-
-uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-log_file = f"results/load_test_{uid}.txt"
-
-# Initialize connection
-conn = mysql.connector.connect(host="localhost", user="root", password="password")
-cursor = conn.cursor()
-
-# 1. Database Creation
-db = "tpcds2"
-cursor.execute(f"DROP DATABASE IF EXISTS {db};")
-cursor.execute(f"CREATE DATABASE {db};")
-cursor.execute(f"USE {db};")
-
-# 2. Table Creation
-with open("tools/tpcds.sql", "r") as f:
-    table_creation_sql = f.read()
-start_time = time.time()
-for result in cursor.execute(table_creation_sql, multi=True):
-    if result.with_rows:
-        result.fetchall()
-table_creation_time = time.time() - start_time
-log_time(log_file, "Table Creation Time", table_creation_time)
-
-conn.commit()
-cursor.close()
-conn.close()
-
-# Initialize Connection Pool
-dbconfig = {
-    "host": "localhost",
-    "user": "root",
-    "password": "password",
-    "database": db,
-    "allow_local_infile": True,
-}
-cnxpool = pooling.MySQLConnectionPool(
-    pool_name="insertion_pool", pool_size=8, **dbconfig
-)
-
-def reset_connection_settings():
-    conn = cnxpool.get_connection()
-    cursor = conn.cursor()
-    
-    # Reset the connection properties to their defaults
-    cursor.execute("SET autocommit=1")
-    cursor.execute("SET unique_checks=1")
-    cursor.execute("SET foreign_key_checks=1")
-    cursor.execute("SET sql_log_bin=1")
-    
-    cursor.close()
-    conn.close()
-
-# 3. Data Insertion
-
-csv_files = glob.glob("../data/2/*.csv")
-# replace / with \ for Windows
-csv_files = list(map(os.path.abspath, csv_files))
-# replace \ with \\ for SQL
-csv_files = list(map(lambda x: x.replace("\\", "\\\\"), csv_files))
+from scripts.utils import log_time, reset_pool
 
 
-def load_data_into_table(csv_file):
+def load_data_into_table(cnxpool, csv_file):
     # Acquire a connection from the pool
     conn = cnxpool.get_connection()
     cursor = conn.cursor()
-    table_name = os.path.basename(csv_file).replace(".csv", "")
-    cursor.execute("SET autocommit=0")
-    cursor.execute("SET unique_checks=0")
-    cursor.execute("SET foreign_key_checks=0")
-    cursor.execute("SET sql_log_bin=0")
+    table_name = os.path.basename(csv_file)[:-4]
+    # turn off autocommit, unique_checks, foreign_key_checks, sql_log_bin
+    cursor.execute("SET autocommit=0;")
+    cursor.execute("SET unique_checks=0;")
+    cursor.execute("SET foreign_key_checks=0;")
+    cursor.execute("SET sql_log_bin=0;")
     start_time = time.time()
     cursor.execute(
-        f"LOAD DATA LOCAL INFILE '{csv_file}' INTO TABLE {table_name} FIELDS TERMINATED BY '|' LINES TERMINATED BY '\\n';"
+        (
+            f"LOAD DATA LOCAL INFILE '{csv_file}' INTO TABLE {table_name} character set latin1 "
+            "FIELDS TERMINATED BY '|' LINES TERMINATED BY '\\n';"
+        )
     )
     elapsed_time = time.time() - start_time
-    log_time(log_file, f"Data Insert Time for {table_name}", elapsed_time)
     # Release the connection back to the pool
     conn.commit()
     cursor.close()
@@ -97,102 +36,131 @@ def load_data_into_table(csv_file):
     return elapsed_time
 
 
-start_time = time.time()
-max_thread_time = 0
-with ThreadPoolExecutor(max_workers=8) as executor:
-    start_time = time.time()
-    results = executor.map(load_data_into_table, csv_files)
-
-    for result in results:
-        if result > max_thread_time:
-            max_thread_time = result
-total_elapsed_time = time.time() - start_time
-log_time(log_file, "Total Data Insert Time", total_elapsed_time)
-
-# Reset the connection settings for each connection in the pool
-for _ in range(8):
-    reset_connection_settings()
-
-# 4. Foreign Key Constraints
-
-def execute_sql_statements(statements):
-    cursor.execute("SET autocommit=0")
-    start_time = time.time()
-    conn = cnxpool.get_connection()
+def load_test(sf: int, uid: str):
+    log_file = f"results/load_test_sf={sf}_{uid}.txt"
+    # Initialize connection
+    conn = mysql.connector.connect(
+        host="localhost", user="root", password="password", consume_results=True
+    )
     cursor = conn.cursor()
-    for sql in statements:
-        try:
-            cursor.execute(sql)
-        except mysql.connector.errors.IntegrityError as e:
-            print(e)
-        else:
-            print(f"Executed {sql}")
+
+    # 1. Database Creation
+    db = "tpcds" if sf == 1 else f"tpcds{sf}"
+    cursor.execute(f"DROP DATABASE IF EXISTS {db};")
+    cursor.execute(f"CREATE DATABASE {db};")
+    cursor.execute(f"USE {db};")
+    # turn off autocommit, unique_checks, foreign_key_checks, sql_log_bin
+    cursor.execute("SET autocommit=0;")
+    cursor.execute("SET unique_checks=0;")
+    cursor.execute("SET foreign_key_checks=0;")
+    cursor.execute("SET sql_log_bin=0;")
+
+    # 2. Table Creation
+    with open("tools/tpcds.sql", "r") as f:
+        table_creation_sql = f.read()
+    initial_time = time.time()
+    for result in cursor.execute(table_creation_sql, multi=True):
+        if result.with_rows:
+            result.fetchall()
+    table_creation_time = time.time() - initial_time
+    log_time(log_file, "Table Creation", table_creation_time)
+    # 3. Data insertion
+    # Initialize Connection Pool
+    dbconfig = {
+        "host": "localhost",
+        "user": "root",
+        "password": "password",
+        "database": db,
+        "allow_local_infile": True,
+        "consume_results": True,
+    }
+    cnxpool = pooling.MySQLConnectionPool(
+        pool_name="insertion_pool", pool_size=8, **dbconfig
+    )
+    csv_files = glob.glob(f"../data/{sf}/*.csv")
+    # replace / with \ for Windows
+    csv_files = list(map(os.path.abspath, csv_files))
+    # replace \ with \\ for SQL
+    csv_files = list(map(lambda x: x.replace("\\", "\\\\"), csv_files))
+    start_time = time.time()
+    max_thread_time = 0
+    th_args = [(cnxpool, csv_file) for csv_file in csv_files]
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = executor.map(lambda p: load_data_into_table(*p), th_args)
+        for result in results:
+            if result > max_thread_time:
+                max_thread_time = result
+    elapsed_time = time.time() - start_time
+    print("max time for a table is", max_thread_time)
+    log_time(log_file, "Insertion", elapsed_time)
+    # Reset the connection settings for each connection in the pool
+    for _ in range(8):
+        reset_pool(cnxpool)
+
+    # 4. Referential Integrity
+    with open("tools/tpcds_ri.sql", "r") as f:
+        tpcds_ri_sql = f.read().strip()
+    start_time = time.time()
+    for result in cursor.execute(tpcds_ri_sql, multi=True):
+        if result.with_rows:
+            result.fetchall()
+    elapsed_time = time.time() - start_time
+    log_time(log_file, "Referential Integrity", elapsed_time)
+
+    # 5. Analyze Tables
+    start_time = time.time()
+    for csv_file in csv_files:
+        table_name = os.path.basename(csv_file)[:-4]
+        cursor.execute(f"ANALYZE TABLE {table_name};")
+    analyze_time = time.time() - start_time
+    log_time(log_file, "Analyze Time", analyze_time)
+
+    q39_ct = """CREATE TABLE MV_INV (
+        W_WAREHOUSE_NAME varchar(20),
+        W_WAREHOUSE_SK integer,
+        I_ITEM_SK integer,
+        D_MOY integer,
+        D_YEAR integer,
+        STDEV float,
+        MEAN float
+    );"""
+    q39_data = """INSERT INTO MV_INV
+        SELECT
+            W_WAREHOUSE_NAME,
+            W_WAREHOUSE_SK,
+            I_ITEM_SK,
+            D_MOY,
+            D_YEAR,
+            STDDEV_SAMP(INV_QUANTITY_ON_HAND) AS STDEV,
+            AVG(INV_QUANTITY_ON_HAND) AS MEAN
+        FROM DATE_DIM
+            JOIN INVENTORY ON INV_DATE_SK = D_DATE_SK
+            JOIN ITEM ON INV_ITEM_SK = I_ITEM_SK
+            JOIN WAREHOUSE ON INV_WAREHOUSE_SK = W_WAREHOUSE_SK
+        GROUP BY W_WAREHOUSE_NAME, W_WAREHOUSE_SK, I_ITEM_SK, D_MOY, D_YEAR;"""
+    start_time = time.time()
+    cursor.execute(q39_ct)
+    cursor.execute(q39_data)
+    elapsed_time = time.time() - start_time
+    log_time(log_file, "EADS", elapsed_time)
+    # finish
+    cursor.execute("SET autocommit=1;")
+    cursor.execute("SET unique_checks=1;")
+    cursor.execute("SET foreign_key_checks=1;")
+    cursor.execute("SET sql_log_bin=1;")
+    end_time = time.time()
+    total_time = end_time - initial_time
+    log_time(log_file, "Total", total_time)
     conn.commit()
     cursor.close()
     conn.close()
-    elapsed_time = time.time() - start_time
-    return elapsed_time
-
-def categorize_statements(fk_sql_statements):
-    table_statements = defaultdict(list)
-    for stmt in fk_sql_statements:
-        # Extract table name from the SQL statement
-        match = re.search(r"alter table (\w+)", stmt, re.I)
-        if match:
-            table_name = match.group(1)
-            table_statements[table_name].append(stmt)
-    return table_statements
-
-def distribute_statements(categorized_statements):
-    # Distribute the statements to threads
-    threads = [[] for _ in range(8)]
-    thread_workloads = [0] * 8
-    
-    for table_name, statements in categorized_statements.items():
-        # Find the thread with the least number of statements
-        least_busy_thread_index = thread_workloads.index(min(thread_workloads))
-        # Assign the statements for this table to the least busy thread
-        threads[least_busy_thread_index].extend(statements)
-        # Update the workload count for this thread
-        thread_workloads[least_busy_thread_index] += len(statements)
-    
-    return threads
+    return total_time
 
 
-with open("tools/tpcds_ri.sql", "r") as f:
-    lines = f.readlines()
-# Filter out comments and empty lines
-lines = [line.strip() for line in lines if not line.startswith("--") and line.strip()]
-# Combine lines into a single string and split into individual statements
-fk_sql_statements = ";".join(lines).split(";")
-# Remove any empty statements or whitespace
-fk_sql_statements = [stmt.strip() for stmt in fk_sql_statements if stmt.strip()]
+if __name__ == "__main__":
+    parser = ArgumentParser("load_test.py", description="Run load test")
+    parser.add_argument("--sf", type=int, default=1, help="Scale factor")
+    args = parser.parse_args()
+    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
 
-categorized_statements = categorize_statements(fk_sql_statements)
-distributed_statements = distribute_statements(categorized_statements)
-
-start_time = time.time()
-
-with ThreadPoolExecutor(max_workers=8) as executor:
-    results = executor.map(execute_sql_statements, distributed_statements)
-elapsed_time = time.time() - start_time
-log_time(log_file, "Total FK Time", elapsed_time)
-
-# Reset the connection settings for each connection in the pool
-for _ in range(8):
-    reset_connection_settings()
-
-# # 5. Analyze Tables
-conn = mysql.connector.connect(host="localhost", user="root", password="password")
-cursor = conn.cursor()
-
-start_time = time.time()
-for csv_file in csv_files:
-    table_name = os.path.basename(csv_file).replace(".csv", "")
-    cursor.execute(f"ANALYZE TABLE {table_name};")
-    cursor.fetchall()
-analyze_time = time.time() - start_time
-log_time(log_file, "Analyze Time", analyze_time)
-conn.commit()
-cursor.close()
-conn.close()
+    load_test(args.sf, uid)
