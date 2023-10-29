@@ -12,9 +12,13 @@ def main(args):
     uid = datetime.now().strftime("%m-%d_%H-%M-%S")
     T_load = load_test(args.sf, uid)
     T_power = power_test(args.sf, args.qdir, uid)
-    T_tt1 = throughput_test(args.sf, args.streams_dir, f"n={1}_" + uid)
+    T_tt1 = throughput_test(
+        args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={1}_" + uid
+    )
     _, _, T_dm1 = data_maintenance_test(1, args.sf, uid)
-    T_tt2 = throughput_test(args.sf, args.streams_dir, f"n={2}_" + uid)
+    T_tt2 = throughput_test(
+        args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={2}_" + uid
+    )
     _, _, T_dm2 = data_maintenance_test(2, args.sf, uid)
 
     SF = args.sf
@@ -34,6 +38,8 @@ def main(args):
     Data Maintenance Time: {T_dm} seconds
     TPC-DS query throughput (QphDS) is {QphDS_SF}"""
     print(results)
+    with open(f"results/benchmark_{uid}.txt", "w") as f:
+        f.write(results)
 
 
 if __name__ == "__main__":
