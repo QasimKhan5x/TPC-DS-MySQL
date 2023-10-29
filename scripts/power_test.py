@@ -28,7 +28,8 @@ def read_sql_files(directory):
 
 
 # Function to execute queries and measure time
-def execute_queries(queries, cursor, results_directory_path, monitor_resource_utils) -> dict:
+def execute_queries(queries, cursor, monitor_resource_utils=False, 
+                    cold_results_dir=None, warm_results_dir=None) -> dict:
     query_times = {}
     for filename, query in queries.items():
         print("Executing", filename, end="...\n")
@@ -39,20 +40,29 @@ def execute_queries(queries, cursor, results_directory_path, monitor_resource_ut
             q = q.strip()
             # warm up the cache
             print("executing warmup query")
+            # Select process & start thread for recording metrics
+            if monitor_resource_utils:
+                condition = Event()
+                stats_thread(condition, cold_results_dir, filename)
             start_time = time.time()
             cursor.execute(query)
             cursor.fetchall()
             while cursor.nextset():
                 pass
+            if monitor_resource_utils:
+                # stop thread
+                condition.set()
+                # otherwise the thread writes the next print statement to the log as well
+                time.sleep(0.5) 
             print(
                 "executed warmup query. took",
                 time.time() - start_time,
                 "seconds",
             )
             # Select process & start thread for recording metrics
-            if monitor_resource_utils == True:
+            if monitor_resource_utils:
                 condition = Event()
-                stats_thread(condition, results_directory_path, filename)
+                stats_thread(condition, warm_results_dir, filename)
 
             # execute query again
             start_time = time.time()
@@ -65,10 +75,11 @@ def execute_queries(queries, cursor, results_directory_path, monitor_resource_ut
             elapsed_time = end_time - start_time
             total_time += elapsed_time
 
-            if monitor_resource_utils == True:
+            if monitor_resource_utils:
                 # stop thread
-                condition.set()  # End while loop.
-                time.sleep(0.5) #  cos otherwise the thread writes the next print statement to the log as well.
+                condition.set()
+                # otherwise the thread writes the next print statement to the log as well
+                time.sleep(0.5) 
 
         print(f"{filename} took {total_time} seconds")
         query_times[filename] = total_time
@@ -107,11 +118,15 @@ def plot_histogram(query_times, scale_factor, uid):
     # plt.show()
 
 
-def power_test(scale_factor, queries_directory, uid, monitor_resource_utils):
+def power_test(scale_factor, queries_directory, uid, monitor_resource_utils=False):
     total_time = 0
-    results_directory_path = f"results/{scale_factor}_{uid}"
-    if not os.path.exists(results_directory_path):
-        os.makedirs(results_directory_path)
+    cold_results_directory_path = f"results/{scale_factor}_{uid}_cold"
+    warm_results_directory_path = f"results/{scale_factor}_{uid}_warm"
+    if monitor_resource_utils:
+        if not os.path.exists(cold_results_directory_path):
+            os.makedirs(cold_results_directory_path)
+        if not os.path.exists(warm_results_directory_path):
+            os.makedirs(warm_results_directory_path)
     try:
         database = "tpcds" if scale_factor == 1 else f"tpcds{scale_factor}"
         conn = mysql.connector.connect(
@@ -124,7 +139,7 @@ def power_test(scale_factor, queries_directory, uid, monitor_resource_utils):
         )
         cursor = conn.cursor()
         queries = read_sql_files(queries_directory)
-        query_times = execute_queries(queries, cursor, results_directory_path, monitor_resource_utils)
+        query_times = execute_queries(queries, cursor, monitor_resource_utils, cold_results_directory_path, warm_results_directory_path)
         total_time = sum(query_times.values())
     except mysql.connector.Error as e:
         print(f"Connection failed: {e}")
@@ -142,7 +157,7 @@ def power_test(scale_factor, queries_directory, uid, monitor_resource_utils):
 def main(args):
     uid = datetime.now().strftime("%m-%d_%H-%M-%S")
     # Run the power test
-    power_test(args.sf, args.qdir, uid, args.mru) # mru --> monitor resource utils
+    power_test(args.sf, args.qdir, uid, args.mru)
 
 
 if __name__ == "__main__":
@@ -160,7 +175,7 @@ if __name__ == "__main__":
         help="Directory for queries to execute",
     )
     parser.add_argument(
-        "--mru", type=bool, default=False, help="Monitor Resource Utils for queries."
+        "--mru", action='store_true', default=False, help="Whether to monitor resource utils"
     )
 
     args = parser.parse_args()
