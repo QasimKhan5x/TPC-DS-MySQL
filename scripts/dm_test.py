@@ -18,7 +18,7 @@ def run_query(cursor, query):
         pass
 
 
-def fact_delete_data_maintenance(dates, prefix):
+def fact_delete_data_maintenance(cursor, dates, prefix):
     start, end = dates
     sales = f"{prefix}_sales"
     returns = f"{prefix}_returns"
@@ -52,7 +52,7 @@ def fact_delete_data_maintenance(dates, prefix):
     run_query(cursor, deletion_query_2)
 
 
-def inventory_delete_data_maintenance(dates):
+def inventory_delete_data_maintenance(cursor, dates):
     start, end = dates
     deletion_query = f"""DELETE FROM INVENTORY
     WHERE inv_date_sk IN (
@@ -76,9 +76,9 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
     start_time = time.time()
     for fact in ["catalog", "store", "web"]:
         for date in fact_dates:
-            fact_delete_data_maintenance(date, fact)
+            fact_delete_data_maintenance(cursor, date, fact)
     for date in inventory_dates:
-        inventory_delete_data_maintenance(date)
+        inventory_delete_data_maintenance(cursor, date)
     end_time = time.time()
     deletion_elapsed_time = end_time - start_time
     log_time(log_file, "Deletion", deletion_elapsed_time)
@@ -125,7 +125,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
         print(cursor.rowcount, "rows affected.")
     end_time = time.time()
     load_data_elapsed_time = end_time - start_time
-    log_time(log_file, "Data Insertion", load_data_elapsed_time)
+    log_time(log_file, "Data Loading", load_data_elapsed_time)
     # 4. Create views
     with open("scripts/dm_views.sql", "r") as f:
         view_creation_sql = f.read().strip()
@@ -146,24 +146,43 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
         "web_returns",
         "web_sales",
     ]
+    primary_keys = [
+        ["cr_order_number", "cr_item_sk"],
+        ["cs_order_number", "cs_item_sk"],
+        ["inv_date_sk", "inv_item_sk", "inv_warehouse_sk"],
+        ["sr_ticket_number", "sr_item_sk"],
+        ["ss_ticket_number", "ss_item_sk"],
+        ["wr_order_number", "wr_item_sk"],
+        ["ws_order_number", "ws_item_sk"],
+    ]
     start_time = time.time()
-    for view, table in zip(views, tables):
-        query = f"INSERT INTO {table} SELECT * FROM {view};"
+    for view, table, pk in zip(views, tables, primary_keys):
+        if table != "inventory":
+            query = f"""INSERT INTO {table}
+                SELECT V.* FROM {view} V
+                WHERE NOT EXISTS (
+                    SELECT 1 
+                    FROM {table} T 
+                    WHERE T.{pk[0]} = V.{pk[0]} AND T.{pk[1]} = V.{pk[1]}
+                    LIMIT 1
+                );
+            """
+        else:
+            query = f"""INSERT INTO {table}
+                SELECT V.* FROM {view} V
+                WHERE NOT EXISTS (
+                    SELECT 1 
+                    FROM {table} T 
+                    WHERE T.{pk[0]} = V.{pk[0]} AND T.{pk[1]} = V.{pk[1]} AND T.{pk[2]} = V.{pk[2]}
+                    LIMIT 1
+                );
+            """
         run_query(cursor, query)
     end_time = time.time()
     insertion_elapsed_time = end_time - start_time
-    log_time(log_file, "Insertion", insertion_elapsed_time)
+    log_time(log_file, "Data Insertion", insertion_elapsed_time)
     # 6. recreate EADS
-    q39_drop = "DROP TABLE IF EXISTS MV_INV;"
-    q39_ct = """CREATE TABLE MV_INV (
-        W_WAREHOUSE_NAME varchar(20),
-        W_WAREHOUSE_SK integer,
-        I_ITEM_SK integer,
-        D_MOY integer,
-        D_YEAR integer,
-        STDEV float,
-        MEAN float
-    );"""
+    q39_delete = """TRUNCATE TABLE table_name;"""
     q39_data = """INSERT INTO MV_INV
         SELECT
             W_WAREHOUSE_NAME,
@@ -179,8 +198,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
             JOIN WAREHOUSE ON INV_WAREHOUSE_SK = W_WAREHOUSE_SK
         GROUP BY W_WAREHOUSE_NAME, W_WAREHOUSE_SK, I_ITEM_SK, D_MOY, D_YEAR;"""
     start_time = time.time()
-    run_query(cursor, q39_drop)
-    run_query(cursor, q39_ct)
+    run_query(cursor, q39_delete)
     run_query(cursor, q39_data)
     end_time = time.time()
     view_updation_time = end_time - start_time
@@ -238,6 +256,6 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="load test")
     parser.add_argument("sf", type=int, help="An integer input for SF")
-    parser.add_argument("n", type=int, help="DM Test 1 or 2")
+    parser.add_argument("test_num", type=int, help="DM Test 1 or 2")
     args = parser.parse_args()
     main(args)
