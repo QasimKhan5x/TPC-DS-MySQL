@@ -66,6 +66,9 @@ def stats_thread(condition, results_directory_path, filename):
     stats_folder_path = results_directory_path + '/' + str(filename)  # query & scale specific
     if not os.path.exists(stats_folder_path):
         os.makedirs(stats_folder_path)
-    p = psutil.Process(4976)  # process ID for mysqld - DEFINE BASED ON YOUR SYSTEM
+    p = psutil.Process(13640)  # process ID for mysqld - DEFINE BASED ON YOUR SYSTEM
     Thread(target=collect_stats, args=([condition, p, stats_folder_path])).start()
     time.sleep(0.5)
+    
+if __name__ == "__main__":
+    check_process_id()
