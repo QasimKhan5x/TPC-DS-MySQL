@@ -29,9 +29,12 @@ def disk_usage_calculation(p, sleep_time, stats_folder_path):
 
 
 def check_process_id():
+    mysqld = 0
     for proc in psutil.process_iter():
         if "mysqld.exe" in proc.name():
-            print(proc.pid)  # I get 2 Processes, relevant process for me is 5624
+            # its usually the last one
+            mysqld = proc.pid
+    return mysqld
 
 
 def cpu_usage_calculation(p, interval, stats_folder_path):
@@ -75,7 +78,8 @@ def stats_thread(condition, results_directory_path, filename):
     )  # query & scale specific
     if not os.path.exists(stats_folder_path):
         os.makedirs(stats_folder_path)
-    p = psutil.Process(17268)  # process ID for mysqld - DEFINE BASED ON YOUR SYSTEM
+    # the process is mysqld - differs each time when mysqld restarts
+    p = psutil.Process(check_process_id())
     Thread(target=collect_stats, args=([condition, p, stats_folder_path])).start()
     time.sleep(0.5)
 
