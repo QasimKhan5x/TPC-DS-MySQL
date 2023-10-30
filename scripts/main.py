@@ -38,7 +38,7 @@ def main(args):
     Data Maintenance Time: {T_dm} seconds
     TPC-DS query throughput (QphDS) is {QphDS_SF}"""
     print(results)
-    with open(f"results/benchmark_{uid}.txt", "w") as f:
+    with open(f"results/benchmark_sf={SF}_{uid}.txt", "w") as f:
         f.write(results)
 
 
