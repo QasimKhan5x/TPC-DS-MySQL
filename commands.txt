@@ -1,0 +1,17 @@
+sudo service mysql start
+
+-- generating daa
+./dsdgen -DIR ../../data/1 \
+-SCALE 1 -VERBOSE Y -SUFFIX ".csv" \
+-TERMINATE N -RNGSEED 42
+
+-- generating query streams for TT
+./dsqgen -DIRECTORY ../query_templates/ \
+-VERBOSE Y -OUTPUT_DIR ../qstreams/6 \
+-INPUT ../query_templates/templates.lst \
+-RNGSEED 42 -DIALECT mysql -STREAMS 4 -SCALE 6
+
+-- generating data for maintenance
+./dsdgen -DIR ../../data-maintenance/$SF/$SET \
+-SCALE $SF -VERBOSE Y -SUFFIX ".csv" \
+-TERMINATE N -RNGSEED 0 -UPDATE $SET
