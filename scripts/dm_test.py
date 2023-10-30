@@ -182,7 +182,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
     insertion_elapsed_time = end_time - start_time
     log_time(log_file, "Data Insertion", insertion_elapsed_time)
     # 6. recreate EADS
-    q39_delete = """TRUNCATE TABLE table_name;"""
+    q39_delete = """TRUNCATE TABLE MV_INV;"""
     q39_data = """INSERT INTO MV_INV
         SELECT
             W_WAREHOUSE_NAME,

@@ -93,7 +93,7 @@ def execute_queries(
 
 # Function to save results to a file
 def save_results_to_file(query_times, scale_factor, uid):
-    filename = f"results/{scale_factor}_{uid}/power_test_sf={scale_factor}.txt"
+    filename = f"results/pt_sf={scale_factor}_{uid}.txt"
     with open(filename, "w") as f:
         for time in query_times.values():
             f.write(f"{time}\n")
@@ -102,7 +102,7 @@ def save_results_to_file(query_times, scale_factor, uid):
 
 # Function to plot horizontal histogram
 def plot_histogram(query_times, scale_factor, uid):
-    filename = f"results/{scale_factor}_{uid}/power_test_sf={scale_factor}.png"
+    filename = f"results/pt_sf={scale_factor}_{uid}.png"
     # Create the horizontal bar chart
     filenames, times = zip(*query_times.items())
     query_times_df = pd.DataFrame({"Query Number": filenames, "Time (seconds)": times})
