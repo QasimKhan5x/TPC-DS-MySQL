@@ -59,10 +59,32 @@ def inventory_delete_data_maintenance(cursor, dates):
         SELECT d_date_sk FROM date_dim
         WHERE d_date between '{start}' and '{end}' 
     );"""
-    run_query(cursor, deletion_query)
+    run_query(cursor, deletion_query)    
 
 
-def load_data_into_views(cursor, log_file):
+
+def data_maintenance(cursor, all_files: list[str], log_file: str):
+    relax_connection(cursor)
+    
+    # 1. data deletion
+    deletion_files = list(filter(lambda x: "delete" in x, all_files))
+    facts_file, inventory_file = deletion_files
+    with open(facts_file) as f:
+        fact_dates = f.readlines()
+    fact_dates = [date.strip().split("|") for date in fact_dates]
+    with open(inventory_file) as f:
+        inventory_dates = f.readlines()
+    inventory_dates = [date.strip().split("|") for date in inventory_dates]
+    start_time = time.time()
+    for fact in ["catalog", "store", "web"]:
+        for date in fact_dates:
+            fact_delete_data_maintenance(cursor, date, fact)
+    for date in inventory_dates:
+        inventory_delete_data_maintenance(cursor, date)
+    end_time = time.time()
+    deletion_elapsed_time = end_time - start_time
+    log_time(log_file, "Deletion", deletion_elapsed_time)
+    
     # 2. create staging area
     with open("tools/tpcds_source.sql", "r") as f:
         table_creation_sql = f.read()
@@ -72,6 +94,7 @@ def load_data_into_views(cursor, log_file):
             result.fetchall()
     table_creation_time = time.time() - start_time
     log_time(log_file, "Table Creation", table_creation_time)
+    
     # 3. load data into staging area
     required_flat_files = [
         "s_catalog_order",
@@ -108,6 +131,7 @@ def load_data_into_views(cursor, log_file):
     end_time = time.time()
     load_data_elapsed_time = end_time - start_time
     log_time(log_file, "Data Loading", load_data_elapsed_time)
+    
     # 4. Create views
     with open("scripts/dm_views.sql", "r") as f:
         view_creation_sql = f.read().strip()
@@ -117,73 +141,56 @@ def load_data_into_views(cursor, log_file):
             result.fetchall()
     view_creation_time = time.time() - start_time
     log_time(log_file, "View Creation", view_creation_time)
-
-
-
-def data_maintenance(cursor, all_files: list[str], log_file: str):
-    relax_connection(cursor)
-    # 1. data deletion
-    deletion_files = list(filter(lambda x: "delete" in x, all_files))
-    facts_file, inventory_file = deletion_files
-    with open(facts_file) as f:
-        fact_dates = f.readlines()
-    fact_dates = [date.strip().split("|") for date in fact_dates]
-    with open(inventory_file) as f:
-        inventory_dates = f.readlines()
-    inventory_dates = [date.strip().split("|") for date in inventory_dates]
-    start_time = time.time()
-    for fact in ["catalog", "store", "web"]:
-        for date in fact_dates:
-            fact_delete_data_maintenance(cursor, date, fact)
-    for date in inventory_dates:
-        inventory_delete_data_maintenance(cursor, date)
-    end_time = time.time()
-    deletion_elapsed_time = end_time - start_time
-    log_time(log_file, "Deletion", deletion_elapsed_time)
-    
     
     # 5. load data into fact tables
     views = ["crv", "csv", "iv", "srv", "ssv", "wrv", "wsv"]
     tables = [
         "catalog_returns",
         "catalog_sales",
-        "inventory",
         "store_returns",
         "store_sales",
         "web_returns",
         "web_sales",
+        "inventory",
     ]
+    table_cols = []
+    for table_name in tables:
+        cursor.execute(f'DESCRIBE {table_name}')
+        columns_description = cursor.fetchall()
+        column_names = [column[0] for column in columns_description]
+        table_cols.append(table_cols)
     primary_keys = [
         ["cr_order_number", "cr_item_sk"],
         ["cs_order_number", "cs_item_sk"],
-        ["inv_date_sk", "inv_item_sk", "inv_warehouse_sk"],
         ["sr_ticket_number", "sr_item_sk"],
         ["ss_ticket_number", "ss_item_sk"],
         ["wr_order_number", "wr_item_sk"],
         ["ws_order_number", "ws_item_sk"],
+        ["inv_date_sk", "inv_item_sk", "inv_warehouse_sk"]
     ]
     start_time = time.time()
-    for view, table, pk in zip(views, tables, primary_keys):
-        if table != "inventory":
-            query = f"""INSERT INTO {table}
-                SELECT V.* FROM {view} V
-                WHERE NOT EXISTS (
-                    SELECT 1 
-                    FROM {table} T 
-                    WHERE T.{pk[0]} = V.{pk[0]} AND T.{pk[1]} = V.{pk[1]}
-                    LIMIT 1
-                );
-            """
+    for view, table, cols, pk in zip(views, tables, table_cols, primary_keys):
+        update_clause = ', '.join(f'{col} = VALUES({col})' for col in cols)
+        if table == "inventory":
+            query = f"""WITH Ranked AS (
+                SELECT *, ROW_NUMBER() OVER (
+                   PARTITION BY {pk[0]}, {pk[1]}, {pk[2]}
+                   ORDER BY {cols[0]} DESC
+               ) as rn FROM {view}
+            )
+            INSERT INTO {table}
+            SELECT * FROM Ranked WHERE rn = 1
+            ON DUPLICATE KEY UPDATE {update_clause};"""
         else:
-            query = f"""INSERT INTO {table}
-                SELECT V.* FROM {view} V
-                WHERE NOT EXISTS (
-                    SELECT 1 
-                    FROM {table} T 
-                    WHERE T.{pk[0]} = V.{pk[0]} AND T.{pk[1]} = V.{pk[1]} AND T.{pk[2]} = V.{pk[2]}
-                    LIMIT 1
-                );
-            """
+            query = f"""WITH Ranked AS (
+                SELECT *, ROW_NUMBER() OVER (
+                   PARTITION BY {pk[0]}, {pk[1]} 
+                   ORDER BY {cols[0]} DESC, {cols[1]} DESC
+               ) as rn FROM {view}
+            )
+            INSERT INTO {table}
+            SELECT * FROM Ranked WHERE rn = 1
+            ON DUPLICATE KEY UPDATE {update_clause};"""
         run_query(cursor, query)
     end_time = time.time()
     insertion_elapsed_time = end_time - start_time
