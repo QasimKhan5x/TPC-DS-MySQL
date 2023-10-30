@@ -62,26 +62,7 @@ def inventory_delete_data_maintenance(cursor, dates):
     run_query(cursor, deletion_query)
 
 
-def data_maintenance(cursor, all_files: list[str], log_file: str):
-    relax_connection(cursor)
-    # 1. data deletion
-    deletion_files = list(filter(lambda x: "delete" in x, all_files))
-    facts_file, inventory_file = deletion_files
-    with open(facts_file) as f:
-        fact_dates = f.readlines()
-    fact_dates = [date.strip().split("|") for date in fact_dates]
-    with open(inventory_file) as f:
-        inventory_dates = f.readlines()
-    inventory_dates = [date.strip().split("|") for date in inventory_dates]
-    start_time = time.time()
-    for fact in ["catalog", "store", "web"]:
-        for date in fact_dates:
-            fact_delete_data_maintenance(cursor, date, fact)
-    for date in inventory_dates:
-        inventory_delete_data_maintenance(cursor, date)
-    end_time = time.time()
-    deletion_elapsed_time = end_time - start_time
-    log_time(log_file, "Deletion", deletion_elapsed_time)
+def load_data_into_views(cursor, log_file):
     # 2. create staging area
     with open("tools/tpcds_source.sql", "r") as f:
         table_creation_sql = f.read()
@@ -110,10 +91,11 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
             all_files,
         )
     )
-    # replace / with \ for Windows
+    # get absolute path of file for mysqld
     data_files = list(map(os.path.abspath, data_files))
-    # replace \ with \\ for SQL
-    data_files = list(map(lambda x: x.replace("\\", "\\\\"), data_files))
+    if os.name == 'nt':
+        # replace \ with \\ for windows-based system
+        data_files = list(map(lambda x: x.replace("\\", "\\\\"), data_files))
     start_time = time.time()
     for data_file in data_files:
         query = (
@@ -135,8 +117,33 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
             result.fetchall()
     view_creation_time = time.time() - start_time
     log_time(log_file, "View Creation", view_creation_time)
-    views = ["crv", "csv", "iv", "srv", "ssv", "wrv", "wsv"]
+
+
+
+def data_maintenance(cursor, all_files: list[str], log_file: str):
+    relax_connection(cursor)
+    # 1. data deletion
+    deletion_files = list(filter(lambda x: "delete" in x, all_files))
+    facts_file, inventory_file = deletion_files
+    with open(facts_file) as f:
+        fact_dates = f.readlines()
+    fact_dates = [date.strip().split("|") for date in fact_dates]
+    with open(inventory_file) as f:
+        inventory_dates = f.readlines()
+    inventory_dates = [date.strip().split("|") for date in inventory_dates]
+    start_time = time.time()
+    for fact in ["catalog", "store", "web"]:
+        for date in fact_dates:
+            fact_delete_data_maintenance(cursor, date, fact)
+    for date in inventory_dates:
+        inventory_delete_data_maintenance(cursor, date)
+    end_time = time.time()
+    deletion_elapsed_time = end_time - start_time
+    log_time(log_file, "Deletion", deletion_elapsed_time)
+    
+    
     # 5. load data into fact tables
+    views = ["crv", "csv", "iv", "srv", "ssv", "wrv", "wsv"]
     tables = [
         "catalog_returns",
         "catalog_sales",
