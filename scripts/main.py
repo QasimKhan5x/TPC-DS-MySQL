@@ -9,16 +9,12 @@ from scripts.throughput_test import throughput_test
 
 
 def main(args):
-    # uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-    uid = "10-30_18-09-44"
-    # T_load = load_test(args.sf, uid)
-    T_load = 1630.5143
-    # T_power = power_test(args.sf, args.qdir, uid)
-    T_power = 1294.39566
-    # T_tt1 = throughput_test(
-    #     args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={1}_" + uid
-    # )
-    T_tt1 = 1447.2193
+    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
+    T_load = load_test(args.sf, uid)
+    T_power = power_test(args.sf, args.qdir, uid)
+    T_tt1 = throughput_test(
+        args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={1}_" + uid
+    )
     _, _, T_dm1 = data_maintenance_test(1, args.sf, uid)
     T_tt2 = throughput_test(
         args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={2}_" + uid
