@@ -36,7 +36,7 @@ def throughput_test(sf, directory, uid):
         "host": "localhost",
         "user": "root",
         "password": "password",
-        "database": f"tpcds" if sf == 1 else f"tpcds_sf{sf}",
+        "database": f"tpcds" if sf == 1 else f"tpcds{sf}",
         "charset": "utf8",
         "consume_results": True,
     }
