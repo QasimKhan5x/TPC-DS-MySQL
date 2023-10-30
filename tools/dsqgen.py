@@ -5,6 +5,7 @@ import shlex
 from glob import glob
 from pprint import pprint
 import re
+import os
 
 def extract_number(s):
     # Extract the number from the string using a regex
@@ -22,6 +23,9 @@ query_files = sorted(files, key=extract_number)
 
 DIRECTORY = "../query_templates"
 OUTPUT_DIR = f"../queries/{args.sf}"
+if not os.path.isdir(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
+
 INPUT = "../query_templates/templates.lst"
 
 for file in query_files:
