@@ -9,12 +9,16 @@ from scripts.throughput_test import throughput_test
 
 
 def main(args):
-    uid = datetime.now().strftime("%m-%d_%H-%M-%S")
-    T_load = load_test(args.sf, uid)
-    T_power = power_test(args.sf, args.qdir, uid)
-    T_tt1 = throughput_test(
-        args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={1}_" + uid
-    )
+    # uid = datetime.now().strftime("%m-%d_%H-%M-%S")
+    uid = "10-30_18-09-44"
+    # T_load = load_test(args.sf, uid)
+    T_load = 1630.5143
+    # T_power = power_test(args.sf, args.qdir, uid)
+    T_power = 1294.39566
+    # T_tt1 = throughput_test(
+    #     args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={1}_" + uid
+    # )
+    T_tt1 = 1447.2193
     _, _, T_dm1 = data_maintenance_test(1, args.sf, uid)
     T_tt2 = throughput_test(
         args.sf, f"{args.streams_dir}/{args.sf}/qmod", f"n={2}_" + uid
@@ -30,8 +34,9 @@ def main(args):
     T_ld = 0.01 * S_q * T_load
     QphDS_SF = math.floor((SF * Q) / ((T_pt * T_tt * T_dm * T_ld) / 3600) ** (1 / 4))
     results = f"""Scale Factor: {SF}
-    Number of Queries: {Q}
+    Number of Weighted Queries: {Q}
     Load Time: {T_load} seconds
+    Load Factor: {T_ld}
     Power Test Time: {T_power} seconds
     Throughput Test 1 Time: {T_tt1} seconds
     Throughput Test 2 Time: {T_tt2} seconds
