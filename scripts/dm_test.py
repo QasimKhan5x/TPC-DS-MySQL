@@ -59,13 +59,12 @@ def inventory_delete_data_maintenance(cursor, dates):
         SELECT d_date_sk FROM date_dim
         WHERE d_date between '{start}' and '{end}' 
     );"""
-    run_query(cursor, deletion_query)    
-
+    run_query(cursor, deletion_query)
 
 
 def data_maintenance(cursor, all_files: list[str], log_file: str):
     relax_connection(cursor)
-    
+
     # 1. data deletion
     deletion_files = list(filter(lambda x: "delete" in x, all_files))
     facts_file, inventory_file = deletion_files
@@ -84,7 +83,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
     end_time = time.time()
     deletion_elapsed_time = end_time - start_time
     log_time(log_file, "Deletion", deletion_elapsed_time)
-    
+
     # 2. create staging area
     with open("tools/tpcds_source.sql", "r") as f:
         table_creation_sql = f.read()
@@ -94,7 +93,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
             result.fetchall()
     table_creation_time = time.time() - start_time
     log_time(log_file, "Table Creation", table_creation_time)
-    
+
     # 3. load data into staging area
     required_flat_files = [
         "s_catalog_order",
@@ -116,7 +115,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
     )
     # get absolute path of file for mysqld
     data_files = list(map(os.path.abspath, data_files))
-    if os.name == 'nt':
+    if os.name == "nt":
         # replace \ with \\ for windows-based system
         data_files = list(map(lambda x: x.replace("\\", "\\\\"), data_files))
     start_time = time.time()
@@ -131,7 +130,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
     end_time = time.time()
     load_data_elapsed_time = end_time - start_time
     log_time(log_file, "Data Loading", load_data_elapsed_time)
-    
+
     # 4. Create views
     with open("scripts/dm_views.sql", "r") as f:
         view_creation_sql = f.read().strip()
@@ -141,9 +140,16 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
             result.fetchall()
     view_creation_time = time.time() - start_time
     log_time(log_file, "View Creation", view_creation_time)
-    
+
     # 5. load data into fact tables
-    views = ["crv", "csv", "iv", "srv", "ssv", "wrv", "wsv"]
+    print("Data Insertion Started")
+    views = ["crv", "csv", "srv", "ssv", "wrv", "wsv", "iv"]
+    view2cols = {}
+    for view_name in views:
+        cursor.execute(f"DESCRIBE {view_name};")
+        columns_description = cursor.fetchall()
+        column_names = [column[0] for column in columns_description]
+        view2cols[view_name] = column_names
     tables = [
         "catalog_returns",
         "catalog_sales",
@@ -153,43 +159,47 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
         "web_sales",
         "inventory",
     ]
-    table_cols = []
+    table2cols = {}
     for table_name in tables:
-        cursor.execute(f'DESCRIBE {table_name}')
+        cursor.execute(f"DESCRIBE {table_name};")
         columns_description = cursor.fetchall()
         column_names = [column[0] for column in columns_description]
-        table_cols.append(table_cols)
-    primary_keys = [
-        ["cr_order_number", "cr_item_sk"],
-        ["cs_order_number", "cs_item_sk"],
-        ["sr_ticket_number", "sr_item_sk"],
-        ["ss_ticket_number", "ss_item_sk"],
-        ["wr_order_number", "wr_item_sk"],
-        ["ws_order_number", "ws_item_sk"],
-        ["inv_date_sk", "inv_item_sk", "inv_warehouse_sk"]
-    ]
+        table2cols[table_name] = column_names
+    primary_key_idx = [[2, 16], [15, 17], [2, 9], [2, 9], [2, 13], [3, 17], [0, 1, 2]]
     start_time = time.time()
-    for view, table, cols, pk in zip(views, tables, table_cols, primary_keys):
-        update_clause = ', '.join(f'{col} = VALUES({col})' for col in cols)
+    for view, table, pk_idx in zip(view2cols, table2cols, primary_key_idx):
+        # SELECT sub.col1, sub.col2, ..., sub.colN
+        selection_clause = ", ".join(f"sub.{col}" for col in table2cols[table])
+        # view_name.col1 AS target_col1, view_name.col2 AS target_col2, ..., view_name.colN AS target_colN
+        rename_clause = ", ".join(
+            f"{view_col} AS {table_col}"
+            for view_col, table_col in zip(view2cols[view], table2cols[table])
+        )
+        # col1 = VALUES(col1), col2 = VALUES(col2), ..., colN = VALUES(colN)
+        update_clause = ", ".join(f"{col} = VALUES({col})" for col in table2cols[table])
         if table == "inventory":
-            query = f"""WITH Ranked AS (
-                SELECT *, ROW_NUMBER() OVER (
-                   PARTITION BY {pk[0]}, {pk[1]}, {pk[2]}
-                   ORDER BY {cols[0]} DESC
-               ) as rn FROM {view}
-            )
-            INSERT INTO {table}
-            SELECT * FROM Ranked WHERE rn = 1
+            query = f"""INSERT INTO inventory
+            SELECT {selection_clause} FROM (
+                SELECT {rename_clause}, 
+                ROW_NUMBER() OVER (
+                    PARTITION BY {view2cols[view][pk_idx[0]]}, 
+                    {view2cols[view][pk_idx[1]]}, {view2cols[view][pk_idx[2]]}
+                    ORDER BY {view2cols[view][0]} DESC
+                ) AS rn
+                FROM {view}
+            ) AS sub
+            WHERE sub.rn = 1
             ON DUPLICATE KEY UPDATE {update_clause};"""
         else:
-            query = f"""WITH Ranked AS (
-                SELECT *, ROW_NUMBER() OVER (
-                   PARTITION BY {pk[0]}, {pk[1]} 
-                   ORDER BY {cols[0]} DESC, {cols[1]} DESC
-               ) as rn FROM {view}
-            )
-            INSERT INTO {table}
-            SELECT * FROM Ranked WHERE rn = 1
+            query = f"""INSERT INTO {table}
+            SELECT {selection_clause} FROM (
+                SELECT {rename_clause}, 
+                ROW_NUMBER() OVER (PARTITION BY {view2cols[view][pk_idx[0]]}, 
+                    {view2cols[view][pk_idx[1]]} ORDER BY {view2cols[view][0]} DESC, 
+                    {view2cols[view][1]} DESC) AS rn
+                FROM {view}
+            ) AS sub
+            WHERE sub.rn = 1
             ON DUPLICATE KEY UPDATE {update_clause};"""
         run_query(cursor, query)
     end_time = time.time()
@@ -269,7 +279,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="load test")
-    parser.add_argument("sf", type=int, help="An integer input for SF")
-    parser.add_argument("test_num", type=int, help="DM Test 1 or 2")
+    parser.add_argument("--sf", type=int, default=1, help="An integer input for SF")
+    parser.add_argument("--test_num", type=int, default=1, help="DM Test 1 or 2")
     args = parser.parse_args()
     main(args)
