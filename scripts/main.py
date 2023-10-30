@@ -28,7 +28,7 @@ def main(args):
     T_tt = T_tt1 + T_tt2
     T_dm = T_dm1 + T_dm2
     T_ld = 0.01 * S_q * T_load
-    QphDS_SF = math.floor((SF * Q) / (T_pt * T_tt * T_dm * T_ld) ** (1 / 4))
+    QphDS_SF = math.floor((SF * Q) / ((T_pt * T_tt * T_dm * T_ld) / 3600) ** (1 / 4))
     results = f"""Scale Factor: {SF}
     Number of Queries: {Q}
     Load Time: {T_load} seconds
