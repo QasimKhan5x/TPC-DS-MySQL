@@ -1,3 +1,4 @@
+
 with my_customers as (
  select distinct c_customer_sk
         , c_current_addr_sk
@@ -51,3 +52,5 @@ with my_customers as (
  group by segment
  order by segment, num_customers
  limit 100;
+
+
