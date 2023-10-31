@@ -238,8 +238,7 @@ if __name__ == "__main__":
             modified_query = modified_query.replace(
                 "cast((revenue/50) as int)", "cast((revenue/50) as unsigned)"
             )
+        # bad but it works
         modified_query = replace_fo_with_lr(modified_query)
         with open(os.path.join(tgt_dir, os.path.basename(filepath)), "w") as f:
             f.write(modified_query)
-
-        # full outer join must be edited manually (just 2 files)
