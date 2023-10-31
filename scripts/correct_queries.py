@@ -166,6 +166,47 @@ def convert_rollup_syntax(sql_query):
     return converted_query
 
 
+def replace_fo_with_lr(sql_query):
+    fo1 = """select case when web.item_sk is not null then web.item_sk else store.item_sk end item_sk
+                 ,case when web.d_date is not null then web.d_date else store.d_date end d_date
+                 ,web.cume_sales web_sales
+                 ,store.cume_sales store_sales
+           from web_v1 web full outer join store_v1 store on (web.item_sk = store.item_sk
+                                                          and web.d_date = store.d_date)"""
+    lr1 = """select case when web.item_sk is not null then web.item_sk else store.item_sk end item_sk
+                 ,case when web.d_date is not null then web.d_date else store.d_date end d_date
+                 ,web.cume_sales web_sales
+                 ,store.cume_sales store_sales
+           from web_v1 web left join store_v1 store on (web.item_sk = store.item_sk
+                                                          and web.d_date = store.d_date)
+            union
+            select case when web.item_sk is not null then web.item_sk else store.item_sk end item_sk
+                 ,case when web.d_date is not null then web.d_date else store.d_date end d_date
+                 ,web.cume_sales web_sales
+                 ,store.cume_sales store_sales
+           from web_v1 web right join store_v1 store on (web.item_sk = store.item_sk
+                                                          and web.d_date = store.d_date)"""
+    fo2 = """select  sum(case when ssci.customer_sk is not null and csci.customer_sk is null then 1 else 0 end) store_only
+      ,sum(case when ssci.customer_sk is null and csci.customer_sk is not null then 1 else 0 end) catalog_only
+      ,sum(case when ssci.customer_sk is not null and csci.customer_sk is not null then 1 else 0 end) store_and_catalog
+from ssci full outer join csci on (ssci.customer_sk=csci.customer_sk
+                               and ssci.item_sk = csci.item_sk)"""
+    lr2 = """select  sum(case when ssci.customer_sk is not null and csci.customer_sk is null then 1 else 0 end) store_only
+      ,sum(case when ssci.customer_sk is null and csci.customer_sk is not null then 1 else 0 end) catalog_only
+      ,sum(case when ssci.customer_sk is not null and csci.customer_sk is not null then 1 else 0 end) store_and_catalog
+from ssci left join csci on (ssci.customer_sk=csci.customer_sk
+                               and ssci.item_sk = csci.item_sk)
+                               union
+            select  sum(case when ssci.customer_sk is not null and csci.customer_sk is null then 1 else 0 end) store_only
+      ,sum(case when ssci.customer_sk is null and csci.customer_sk is not null then 1 else 0 end) catalog_only
+      ,sum(case when ssci.customer_sk is not null and csci.customer_sk is not null then 1 else 0 end) store_and_catalog
+from ssci right join csci on (ssci.customer_sk=csci.customer_sk
+                               and ssci.item_sk = csci.item_sk)"""
+    sql_query = sql_query.replace(fo1, lr1)
+    sql_query = sql_query.replace(fo2, lr2)
+    return sql_query
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--sf", type=int, default=1)
@@ -197,6 +238,7 @@ if __name__ == "__main__":
             modified_query = modified_query.replace(
                 "cast((revenue/50) as int)", "cast((revenue/50) as unsigned)"
             )
+        modified_query = replace_fo_with_lr(modified_query)
         with open(os.path.join(tgt_dir, os.path.basename(filepath)), "w") as f:
             f.write(modified_query)
 
