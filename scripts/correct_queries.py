@@ -169,10 +169,15 @@ def convert_rollup_syntax(sql_query):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--sf", type=int, default=1)
+    parser.add_argument("--qdir", type=str, default="queries")
     args = parser.parse_args()
 
-    original_queries = glob(f"qstreams/{args.sf}/*.sql")
-    tgt_dir = f"qstreams/{args.sf}/qmod"
+    orig_dir = f"{args.qdir}/{args.sf}/orig/"
+    tgt_dir = f"{args.qdir}/{args.sf}/qmod"
+
+    assert os.path.isdir(orig_dir), "Invalid query directory."
+    original_queries = glob(orig_dir + "/*.sql")
+
     if not os.path.exists(tgt_dir):
         os.makedirs(tgt_dir)
 
@@ -180,12 +185,7 @@ if __name__ == "__main__":
         with open(filepath) as f:
             query = f.read().strip()
 
-        modified_query = query
         modified_query = add_aliases_to_all_derived_tables(query)
-        # for fn in ["2.sql", "14.sql", "23.sql", "49.sql"]:
-        #     if filepath.endswith(fn):
-        #         modified_query = add_aliases_to_all_derived_tables(query)
-        #         break
         modified_query = correct_date_interval(modified_query)
         modified_query = rem_spaces_bw_func(modified_query, ["sum", "cast"])
         modified_query = convert_rollup_syntax(modified_query)
@@ -199,6 +199,5 @@ if __name__ == "__main__":
             )
         with open(os.path.join(tgt_dir, os.path.basename(filepath)), "w") as f:
             f.write(modified_query)
-        # still remaining
-        # full outer join
-        # issue with q49
+
+        # full outer join must be edited manually (just 2 files)

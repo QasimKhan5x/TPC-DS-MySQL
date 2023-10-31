@@ -2003,7 +2003,13 @@ group by cs_bill_customer_sk
  select  sum(case when ssci.customer_sk is not null and csci.customer_sk is null then 1 else 0 end) store_only
       ,sum(case when ssci.customer_sk is null and csci.customer_sk is not null then 1 else 0 end) catalog_only
       ,sum(case when ssci.customer_sk is not null and csci.customer_sk is not null then 1 else 0 end) store_and_catalog
-from ssci full outer join csci on (ssci.customer_sk=csci.customer_sk
+from ssci left join csci on (ssci.customer_sk=csci.customer_sk
+                               and ssci.item_sk = csci.item_sk)
+union
+ select  sum(case when ssci.customer_sk is not null and csci.customer_sk is null then 1 else 0 end) store_only
+      ,sum(case when ssci.customer_sk is null and csci.customer_sk is not null then 1 else 0 end) catalog_only
+      ,sum(case when ssci.customer_sk is not null and csci.customer_sk is not null then 1 else 0 end) store_and_catalog
+from ssci right join csci on (ssci.customer_sk=csci.customer_sk
                                and ssci.item_sk = csci.item_sk)
 limit 100;
 
@@ -4550,7 +4556,14 @@ from (select item_sk
                  ,case when web.d_date is not null then web.d_date else store.d_date end d_date
                  ,web.cume_sales web_sales
                  ,store.cume_sales store_sales
-           from web_v1 web full outer join store_v1 store on (web.item_sk = store.item_sk
+           from web_v1 web left join store_v1 store on (web.item_sk = store.item_sk
+                                                          and web.d_date = store.d_date)
+          union
+          select case when web.item_sk is not null then web.item_sk else store.item_sk end item_sk
+                 ,case when web.d_date is not null then web.d_date else store.d_date end d_date
+                 ,web.cume_sales web_sales
+                 ,store.cume_sales store_sales
+           from web_v1 web right join store_v1 store on (web.item_sk = store.item_sk
                                                           and web.d_date = store.d_date)
           )x )y
 where web_cumulative > store_cumulative
