@@ -142,7 +142,6 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
     log_time(log_file, "View Creation", view_creation_time)
 
     # 5. load data into fact tables
-    print("Data Insertion Started")
     views = ["crv", "csv", "srv", "ssv", "wrv", "wsv", "iv"]
     view2cols = {}
     for view_name in views:
@@ -166,8 +165,15 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
         column_names = [column[0] for column in columns_description]
         table2cols[table_name] = column_names
     primary_key_idx = [[2, 16], [15, 17], [2, 9], [2, 9], [2, 13], [3, 17], [0, 1, 2]]
+    pk_not_null_clause = []
+    for indxs, table_name in zip(primary_key_idx, table2cols):
+        clause = []
+        for ind in indxs:
+            clause.append(f"{table2cols[table_name][ind]} IS NOT NULL")
+        clause = " AND ".join(clause)
+        pk_not_null_clause.append(clause)
     start_time = time.time()
-    for view, table, pk_idx in zip(view2cols, table2cols, primary_key_idx):
+    for view, table, pk_idx, pk_not_null in zip(view2cols, table2cols, primary_key_idx, pk_not_null_clause):
         # SELECT sub.col1, sub.col2, ..., sub.colN
         selection_clause = ", ".join(f"sub.{col}" for col in table2cols[table])
         # view_name.col1 AS target_col1, view_name.col2 AS target_col2, ..., view_name.colN AS target_colN
@@ -188,7 +194,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
                 ) AS rn
                 FROM {view}
             ) AS sub
-            WHERE sub.rn = 1
+            WHERE sub.rn = 1 AND {pk_not_null}
             ON DUPLICATE KEY UPDATE {update_clause};"""
         else:
             query = f"""INSERT INTO {table}
@@ -199,7 +205,7 @@ def data_maintenance(cursor, all_files: list[str], log_file: str):
                     {view2cols[view][1]} DESC) AS rn
                 FROM {view}
             ) AS sub
-            WHERE sub.rn = 1
+            WHERE sub.rn = 1 AND {pk_not_null}
             ON DUPLICATE KEY UPDATE {update_clause};"""
         run_query(cursor, query)
     end_time = time.time()

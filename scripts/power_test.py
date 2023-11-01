@@ -34,6 +34,7 @@ def execute_queries(
     monitor_resource_utils=False,
     cold_results_dir=None,
     warm_results_dir=None,
+    warmup=False
 ) -> dict:
     query_times = {}
     for filename, query in queries.items():
@@ -43,27 +44,28 @@ def execute_queries(
         query_lst = list(filter(lambda x: len(x.strip()) > 0, query_lst))
         for q in query_lst:
             q = q.strip()
-            # warm up the cache
-            print("executing warmup query")
-            # Select process & start thread for recording metrics
-            if monitor_resource_utils:
-                condition = Event()
-                stats_thread(condition, cold_results_dir, filename)
-            start_time = time.time()
-            cursor.execute(query)
-            cursor.fetchall()
-            while cursor.nextset():
-                pass
-            if monitor_resource_utils:
-                # stop thread
-                condition.set()
-                # otherwise the thread writes the next print statement to the log as well
-                time.sleep(0.5)
-            print(
-                "executed warmup query. took",
-                time.time() - start_time,
-                "seconds",
-            )
+            if warmup:
+                # warm up the cache
+                print("executing warmup query")
+                # Select process & start thread for recording metrics
+                if monitor_resource_utils:
+                    condition = Event()
+                    stats_thread(condition, cold_results_dir, filename)
+                start_time = time.time()
+                cursor.execute(query)
+                cursor.fetchall()
+                while cursor.nextset():
+                    pass
+                if monitor_resource_utils:
+                    # stop thread
+                    condition.set()
+                    # otherwise the thread writes the next print statement to the log as well
+                    time.sleep(0.5)
+                print(
+                    "executed warmup query. took",
+                    time.time() - start_time,
+                    "seconds",
+                )
             # Select process & start thread for recording metrics
             if monitor_resource_utils:
                 condition = Event()
@@ -123,12 +125,12 @@ def plot_histogram(query_times, scale_factor, uid):
     # plt.show()
 
 
-def power_test(scale_factor, queries_directory, uid, monitor_resource_utils=False):
+def power_test(scale_factor, queries_directory, uid, monitor_resource_utils=False, warmup=False):
     total_time = 0
     cold_results_directory_path = f"results/{scale_factor}_{uid}_cold"
     warm_results_directory_path = f"results/{scale_factor}_{uid}_warm"
     if monitor_resource_utils:
-        if not os.path.exists(cold_results_directory_path):
+        if warmup and not os.path.exists(cold_results_directory_path):
             os.makedirs(cold_results_directory_path)
         if not os.path.exists(warm_results_directory_path):
             os.makedirs(warm_results_directory_path)
@@ -150,6 +152,7 @@ def power_test(scale_factor, queries_directory, uid, monitor_resource_utils=Fals
             monitor_resource_utils,
             cold_results_directory_path,
             warm_results_directory_path,
+            warmup
         )
         total_time = sum(query_times.values())
     except mysql.connector.Error as e:
@@ -167,8 +170,11 @@ def power_test(scale_factor, queries_directory, uid, monitor_resource_utils=Fals
 
 def main(args):
     uid = datetime.now().strftime("%m-%d_%H-%M-%S")
+    qdir = f"{args.qdir}/{args.sf}/qmod"
+    if args.opt:
+        qdir += "_opt"
     # Run the power test
-    power_test(args.sf, args.qdir, uid, args.mru)
+    power_test(args.sf, qdir, uid, args.mru, args.warmup)
 
 
 if __name__ == "__main__":
@@ -182,7 +188,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--qdir",
         type=str,
-        default="queries/1/qmod",
+        default="queries",
         help="Directory for queries to execute",
     )
     parser.add_argument(
@@ -190,6 +196,18 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Whether to monitor resource utils",
+    )
+    parser.add_argument(
+        "--opt",
+        action="store_true",
+        default=False,
+        help="Whether to use folder with optimized queries",
+    )
+    parser.add_argument(
+        "--warmup",
+        action="store_true",
+        default=False,
+        help="Whether to use query warmup",
     )
 
     args = parser.parse_args()
