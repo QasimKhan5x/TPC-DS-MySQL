@@ -37,7 +37,7 @@ make
 ```
 For Windows, use Visual Studio to open the `.sln` file and build the project.
 
-2. Create a folder called `../data/1` and `../data-maintenance/1`. The data for SF=1 will go here. 
+2. Create a folder called `../data/1` and `../data-maintenance/1`. The data for SF=1 will go here. These folders should exist outside of the root folder. So, if you are in `tools`, you should make the directories two levels up from the current directory instead.
 3. After building it, execute `./dsdgen` to build the data. Precise instructions regarding all the arguments are given in Section 3.3 of our report.
 4. Remove empty values in each file by executing the following script:
 ```bash
